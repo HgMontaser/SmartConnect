@@ -1,0 +1,7 @@
+com.smartconnect.commons.security.ServletResourceServerAutoConfiguration
+com.smartconnect.commons.security.ReactiveResourceServerAutoConfiguration
+com.smartconnect.commons.correlation.ServletCorrelationIdAutoConfiguration
+com.smartconnect.commons.correlation.ReactiveCorrelationIdAutoConfiguration
+com.smartconnect.commons.error.ErrorHandlingAutoConfiguration
+com.smartconnect.commons.observability.ObservabilityAutoConfiguration
+com.smartconnect.commons.kafka.KafkaObservabilityAutoConfiguration

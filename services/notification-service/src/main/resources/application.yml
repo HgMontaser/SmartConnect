@@ -1,0 +1,67 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: notification-service
+
+  # Fail fast if Vault isn't reachable at boot: mandatory import (no "optional:" prefix).
+  config:
+    import: "vault://"
+
+  cloud:
+    vault:
+      uri: ${VAULT_URI:http://vault:8200}
+      authentication: TOKEN
+      token: ${VAULT_TOKEN:smartconnect-root-token}
+      fail-fast: true
+      kv:
+        enabled: true
+        backend: secret
+        # secret/data/smartconnect/notification-service - matches infra/vault/seed.sh
+        application-name: smartconnect/notification-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:19092}
+    consumer:
+      group-id: notification-service
+      # earliest so a fresh consumer group also picks up events published before this service
+      # existed/was running - useful for phase1 verification, and harmless steady-state since
+      # the group id then keeps its own committed offset going forward.
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.smartconnect.commons.events
+        spring.json.value.default.type: com.smartconnect.commons.events.UserEvent
+        # Producer (user-service) doesn't stamp Java-class type headers on records - see its
+        # application.yml - so don't try to read them here either.
+        spring.json.use.type.headers: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
+  elastic:
+    metrics:
+      export:
+        enabled: true
+        host: ${ELASTICSEARCH_HOST:http://elasticsearch:9200}
+        index: smartconnect-metrics
+        step: 30s
+
+smartconnect:
+  environment: ${SMARTCONNECT_ENV:local}
+
+logging:
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} [correlationId=%X{correlationId}] - %msg%n"

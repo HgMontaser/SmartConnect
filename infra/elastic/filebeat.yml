@@ -1,0 +1,18 @@
+filebeat.inputs:
+  - type: container
+    paths:
+      - "/var/lib/docker/containers/*/*.log"
+
+processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS}"]
+  index: "smartconnect-logs-%{+yyyy.MM.dd}"
+
+setup.template.name: "smartconnect-logs"
+setup.template.pattern: "smartconnect-logs-*"
+setup.ilm.enabled: false
+
+logging.level: info
