@@ -149,7 +149,24 @@ jobs:
             --token-version 2.0.0 \
             --kube-endpoint PUBLIC_ENDPOINT
 
-      - name: Deploy infra chart (Vault)
+      # Keycloak's realm/theme ConfigMaps are sourced straight from infra/keycloak/ rather
+      # than duplicated into the chart (Helm's .Files can only read within the chart
+      # directory) — recreate them here on every deploy so an edit to the realm or theme
+      # actually reaches the cluster, not just the docker-compose stack.
+      - name: Sync Keycloak realm/theme ConfigMaps
+        run: |
+          kubectl create configmap keycloak-realm-config \
+            --from-file=realm-export.json=infra/keycloak/realm-export.json \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create configmap keycloak-theme-login-root \
+            --from-file=theme.properties=infra/keycloak/themes/smartconnect/login/theme.properties \
+            --from-file=login.ftl=infra/keycloak/themes/smartconnect/login/login.ftl \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create configmap keycloak-theme-login-css \
+            --from-file=styles.css=infra/keycloak/themes/smartconnect/login/resources/css/styles.css \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy infra chart (Vault, Keycloak, Postgres)
         run: helm upgrade --install smartconnect-infra k8s/smartconnect-infra --wait --timeout 5m
 
       - name: Verify rollout
