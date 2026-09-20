@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  labels:
+    app: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: docker.io/apache/kafka:3.8.0
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            # Single PLAINTEXT listener, no EXTERNAL split — the docker-compose setup needed
+            # one to reach Kafka from outside the compose network (the local kind trial, or
+            # the host), but every client here (user-service, notification-service) is
+            # in-cluster once they migrate, so plain in-cluster Service DNS is enough.
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka:9092"
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            # localhost, not the "kafka" Service — with broker+controller combined in this
+            # one pod, routing the controller connection through the Service creates a
+            # deadlock: the Service only forwards to Ready pods, but this pod can't become
+            # Ready until it successfully reaches its controller. localhost reaches the
+            # controller listener directly, bypassing the Service (and its readiness gate)
+            # entirely.
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@localhost:9093"
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "PLAINTEXT"
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
+            - name: CLUSTER_ID
+              value: "smartconnect-oke-kraft-cluster-1"
+          ports:
+            - containerPort: 9092
+            - containerPort: 9093
+          # No persistent volume — same free-tier tradeoff as Redis (see values.yaml note).
+          # A pod restart loses topic data; acceptable for this trial, not for real traffic.
+          # timeoutSeconds matters here: this probe command boots a full JVM on every
+          # invocation, which routinely takes longer than the 1s exec-probe default —
+          # without an explicit timeout the probe fails on slowness alone, not a real
+          # problem, and the liveness probe ends up restarting an otherwise-healthy broker.
+          readinessProbe:
+            exec:
+              command: ["/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command: ["/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+spec:
+  selector:
+    app: kafka
+  ports:
+    - name: plaintext
+      port: 9092
+      targetPort: 9092
+    - name: controller
+      port: 9093
+      targetPort: 9093
