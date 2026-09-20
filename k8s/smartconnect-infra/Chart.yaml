@@ -1,0 +1,10 @@
+apiVersion: v2
+name: smartconnect-infra
+description: >
+  Backing services being migrated from docker-compose onto real cloud infrastructure
+  (currently OKE) — one at a time, starting with Vault. Deliberately separate from the
+  `smartconnect` chart (the app services), which stays pointed at the local kind trial
+  until enough of this chart exists for the app to actually run against it.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
