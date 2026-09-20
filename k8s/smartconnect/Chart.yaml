@@ -1,0 +1,10 @@
+apiVersion: v2
+name: smartconnect
+description: >
+  First-pass Helm chart for SmartConnect's Spring services. Deliberately scoped to
+  api-gateway + user-service only — Keycloak, Kafka, Vault, Redis, and Elasticsearch stay
+  on docker-compose for this trial (reached via hostAliases/env overrides) to prove the
+  cluster + chart work before migrating the whole stack.
+type: application
+version: 0.1.0
+appVersion: "0.1.0-SNAPSHOT"

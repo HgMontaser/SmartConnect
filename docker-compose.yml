@@ -117,7 +117,13 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:19092,CONTROLLER://0.0.0.0:19093,EXTERNAL://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,EXTERNAL://localhost:9092
+      # EXTERNAL advertises host.docker.internal rather than localhost: after the initial
+      # bootstrap connect, Kafka tells clients to reconnect to this advertised address for
+      # actual produce/consume — "localhost" would send a client in another container (e.g.
+      # a k8s pod) back to itself instead of the host. host.docker.internal resolves
+      # correctly from both other containers and pods; only a client running directly on the
+      # Mac host (outside any container) would need localhost, and nothing here does that.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,EXTERNAL://host.docker.internal:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:19093

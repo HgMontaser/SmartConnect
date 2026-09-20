@@ -1,0 +1,50 @@
+{{- range .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+  labels:
+    app: {{ .name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .name }}
+    spec:
+      # Vault's stored config for this service bakes in the docker-compose hostname
+      # "keycloak" (JWT issuer-uri, and for user-service the admin API base URL too) — a
+      # plain env var can't override a value that lives inside the secret itself, so we
+      # point that one hostname at the host directly instead.
+      hostAliases:
+        - ip: {{ $.Values.keycloakHostAliasIP }}
+          hostnames:
+            - keycloak
+      containers:
+        - name: {{ .name }}
+          image: {{ .image }}
+          imagePullPolicy: {{ .imagePullPolicy }}
+          ports:
+            - containerPort: {{ .port }}
+          env:
+            {{- range $key, $value := .env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .port }}
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .port }}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+---
+{{- end }}

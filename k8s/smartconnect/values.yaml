@@ -1,0 +1,36 @@
+# Local-trial defaults: images built + `kind load docker-image`'d locally (no registry
+# pull needed), everything else (Keycloak/Vault/Redis/Kafka/Elasticsearch) still running via
+# docker-compose on the host, reached over host.docker.internal.
+#
+# `keycloakHostAliasIP` is host.docker.internal's resolved IP inside the Docker Desktop VM —
+# needed because the JWT issuer-uri and Keycloak admin URL are baked into Vault secret values
+# as the docker-compose hostname "keycloak", not something a plain env var can override.
+keycloakHostAliasIP: "192.168.65.254"
+hostDockerInternal: "host.docker.internal"
+
+services:
+  - name: api-gateway
+    image: smartconnect-api-gateway:latest
+    imagePullPolicy: IfNotPresent
+    port: 8090
+    env:
+      VAULT_URI: "http://host.docker.internal:8200"
+      VAULT_TOKEN: "smartconnect-root-token"
+      REDIS_HOST: "host.docker.internal"
+      REDIS_PORT: "6379"
+      ELASTICSEARCH_HOST: "http://host.docker.internal:9200"
+      USER_SERVICE_URI: "http://user-service:8081"
+      NOTIFICATION_SERVICE_WS_URI: "ws://host.docker.internal:8082"
+
+  - name: user-service
+    image: smartconnect-user-service:latest
+    imagePullPolicy: IfNotPresent
+    port: 8081
+    env:
+      VAULT_URI: "http://host.docker.internal:8200"
+      VAULT_TOKEN: "smartconnect-root-token"
+      # Port 9092, not the internal-only 19092: Kafka's EXTERNAL listener (published to the
+      # host, and now advertised as host.docker.internal — see docker-compose.yml) is what a
+      # client outside the docker-compose network, like this pod, has to use.
+      KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9092"
+      ELASTICSEARCH_HOST: "http://host.docker.internal:9200"
