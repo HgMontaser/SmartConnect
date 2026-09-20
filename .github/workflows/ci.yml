@@ -85,10 +85,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # upload-artifact strips the shared `services/` prefix from the three glob
+      # paths (using their common ancestor), so downloading straight to `.` would put
+      # jars one directory too shallow — download into `services/` to put it back.
       - uses: actions/download-artifact@v4
         with:
           name: service-jars
-          path: .
+          path: services
 
       - name: Lowercase image owner (GHCR requires it)
         run: echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
