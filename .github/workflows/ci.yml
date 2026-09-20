@@ -110,15 +110,50 @@ jobs:
             ghcr.io/${{ env.IMAGE_OWNER }}/smartconnect-${{ matrix.service }}:${{ github.sha }}
             ghcr.io/${{ env.IMAGE_OWNER }}/smartconnect-${{ matrix.service }}:develop
 
-  # Deploys to the real OKE cluster on every push to develop. Scoped to the infra chart
-  # (currently just Vault) for now — api-gateway/user-service can't fully boot on OKE yet
-  # since Keycloak/Kafka/Redis/Elasticsearch are still docker-compose-only, unreachable from
-  # OKE's network. This job is the right shape to extend once that changes: add an OCIR
-  # build step (see the arch note below) and a second `helm upgrade` for the app chart.
+  # OKE's node is Ampere A1 (arm64) — GitHub's ubuntu-latest runners are amd64, so this
+  # needs an actual cross-platform build (QEMU + buildx), not just a plain docker build.
+  publish-oke-images:
+    name: publish-oke-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [ci-passed]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api-gateway, user-service, notification-service]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: service-jars
+          path: services
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.OCIR_REGISTRY }}
+          username: ${{ vars.OCIR_USERNAME }}
+          password: ${{ secrets.OCIR_AUTH_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: services/${{ matrix.service }}
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-${{ matrix.service }}:${{ github.sha }}
+            ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-${{ matrix.service }}:latest
+
+  # Deploys to the real OKE cluster on every push to develop: the infra chart (Vault,
+  # Keycloak+Postgres, Redis, Kafka, Elasticsearch) and the app-services chart
+  # (api-gateway, user-service, notification-service), using the OCIR images this same
+  # workflow just built.
   deploy-oke:
     name: deploy-oke
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs: [ci-passed]
+    needs: [ci-passed, publish-oke-images]
     runs-on: ubuntu-latest
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
@@ -166,8 +201,27 @@ jobs:
             --from-file=styles.css=infra/keycloak/themes/smartconnect/login/resources/css/styles.css \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy infra chart (Vault, Keycloak, Postgres)
+      - name: Deploy infra chart (Vault, Keycloak, Postgres, Redis, Kafka, Elasticsearch)
         run: helm upgrade --install smartconnect-infra k8s/smartconnect-infra --wait --timeout 5m
+
+      # OCIR repos are private, so the cluster needs its own credential to pull from them —
+      # separate from the one this job used above to push (same account, but kept as
+      # distinct steps/secrets since a pull-only credential shouldn't need push scope).
+      - name: Sync OCIR pull secret
+        run: |
+          kubectl create secret docker-registry ocir-pull-secret \
+            --docker-server="${{ vars.OCIR_REGISTRY }}" \
+            --docker-username="${{ vars.OCIR_USERNAME }}" \
+            --docker-password="${{ secrets.OCIR_AUTH_TOKEN }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy app-services chart (api-gateway, user-service, notification-service)
+        run: |
+          helm upgrade --install smartconnect-app k8s/smartconnect -f k8s/smartconnect/values-oke.yaml \
+            --set services[0].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-api-gateway:${{ github.sha }} \
+            --set services[1].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-user-service:${{ github.sha }} \
+            --set services[2].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-notification-service:${{ github.sha }} \
+            --wait --timeout 5m
 
       - name: Verify rollout
         run: kubectl get pods -o wide
