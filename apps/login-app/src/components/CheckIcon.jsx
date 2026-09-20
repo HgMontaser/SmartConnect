@@ -1,7 +1,0 @@
-export default function CheckIcon() {
-  return (
-    <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-      <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-    </svg>
-  );
-}
