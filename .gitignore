@@ -9,3 +9,4 @@ dist/
 *.log
 .env
 .claude/
+github-recovery-codes.txt
