@@ -146,6 +146,52 @@ jobs:
             ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-${{ matrix.service }}:${{ github.sha }}
             ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-${{ matrix.service }}:latest
 
+  # Same idea as publish-oke-images, but frontends need their own build (Vite bakes
+  # VITE_* env vars in at build time — this is what makes them carry the public
+  # Keycloak/gateway hostnames from apps/*/.env.production, not the localhost ones from
+  # .env — so this can't just reuse the service-jars artifact the way the backend does).
+  publish-oke-frontend-images:
+    name: publish-oke-frontend-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [ci-passed]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [login-app, backoffice-app]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/${{ matrix.app }}/package-lock.json
+
+      - run: npm ci
+        working-directory: apps/${{ matrix.app }}
+
+      # Production mode by default — picks up .env.production automatically.
+      - run: npm run build
+        working-directory: apps/${{ matrix.app }}
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.OCIR_REGISTRY }}
+          username: ${{ vars.OCIR_USERNAME }}
+          password: ${{ secrets.OCIR_AUTH_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: apps/${{ matrix.app }}
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-${{ matrix.app }}:${{ github.sha }}
+            ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-${{ matrix.app }}:latest
+
   # Deploys to the real OKE cluster on every push to develop: the infra chart (Vault,
   # Keycloak+Postgres, Redis, Kafka, Elasticsearch) and the app-services chart
   # (api-gateway, user-service, notification-service), using the OCIR images this same
@@ -153,7 +199,7 @@ jobs:
   deploy-oke:
     name: deploy-oke
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs: [ci-passed, publish-oke-images]
+    needs: [ci-passed, publish-oke-images, publish-oke-frontend-images]
     runs-on: ubuntu-latest
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
@@ -201,8 +247,14 @@ jobs:
             --from-file=styles.css=infra/keycloak/themes/smartconnect/login/resources/css/styles.css \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy infra chart (Vault, Keycloak, Postgres, Redis, Kafka, Elasticsearch)
-        run: helm upgrade --install smartconnect-infra k8s/smartconnect-infra --wait --timeout 5m
+      # Reads the ingress-nginx LoadBalancer's actual current IP rather than trusting the
+      # hardcoded default in values.yaml — self-corrects if the LB is ever recreated
+      # (ingress-nginx itself is a one-time manual cluster bootstrap step, not part of this
+      # workflow, the same as creating the OKE cluster itself isn't).
+      - name: Deploy infra chart (Vault, Keycloak, Postgres, Redis, Kafka, Elasticsearch, Ingress)
+        run: |
+          LB_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          helm upgrade --install smartconnect-infra k8s/smartconnect-infra --set publicIP="$LB_IP" --wait --timeout 5m
 
       # OCIR repos are private, so the cluster needs its own credential to pull from them —
       # separate from the one this job used above to push (same account, but kept as
@@ -215,12 +267,14 @@ jobs:
             --docker-password="${{ secrets.OCIR_AUTH_TOKEN }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy app-services chart (api-gateway, user-service, notification-service)
+      - name: Deploy app-services chart (api-gateway, user-service, notification-service, login-app, backoffice-app)
         run: |
           helm upgrade --install smartconnect-app k8s/smartconnect -f k8s/smartconnect/values-oke.yaml \
             --set services[0].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-api-gateway:${{ github.sha }} \
             --set services[1].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-user-service:${{ github.sha }} \
             --set services[2].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-notification-service:${{ github.sha }} \
+            --set services[3].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-login-app:${{ github.sha }} \
+            --set services[4].image=${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/smartconnect-backoffice-app:${{ github.sha }} \
             --wait --timeout 5m
 
       - name: Verify rollout
