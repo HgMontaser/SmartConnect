@@ -1,0 +1,45 @@
+# OKE deployment: every backing service is now in-cluster too (see k8s/smartconnect-infra),
+# so this is plain in-cluster Service DNS throughout — no host.docker.internal, no
+# hostAliases needed.
+#
+# keycloakHostAliasIP MUST be explicitly emptied here, not just omitted: `helm -f` merges
+# this file over the chart's own values.yaml rather than replacing it, so leaving this key
+# out would silently inherit the kind trial's host.docker.internal IP — which is exactly
+# what happened on the first pass at this (api-gateway/user-service pods on OKE resolved
+# "keycloak" to a Mac-only Docker Desktop IP, unreachable from Oracle's network at all).
+keycloakHostAliasIP: ""
+imagePullSecret: ocir-pull-secret
+
+services:
+  - name: api-gateway
+    image: lej.ocir.io/axrcnkz8pjrp/smartconnect-api-gateway:latest
+    imagePullPolicy: Always
+    port: 8090
+    env:
+      VAULT_URI: "http://vault:8200"
+      VAULT_TOKEN: "smartconnect-root-token"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      ELASTICSEARCH_HOST: "http://elasticsearch:9200"
+      USER_SERVICE_URI: "http://user-service:8081"
+      NOTIFICATION_SERVICE_WS_URI: "ws://notification-service:8082"
+
+  - name: user-service
+    image: lej.ocir.io/axrcnkz8pjrp/smartconnect-user-service:latest
+    imagePullPolicy: Always
+    port: 8081
+    env:
+      VAULT_URI: "http://vault:8200"
+      VAULT_TOKEN: "smartconnect-root-token"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      ELASTICSEARCH_HOST: "http://elasticsearch:9200"
+
+  - name: notification-service
+    image: lej.ocir.io/axrcnkz8pjrp/smartconnect-notification-service:latest
+    imagePullPolicy: Always
+    port: 8082
+    env:
+      VAULT_URI: "http://vault:8200"
+      VAULT_TOKEN: "smartconnect-root-token"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      ELASTICSEARCH_HOST: "http://elasticsearch:9200"

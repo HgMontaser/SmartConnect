@@ -15,14 +15,24 @@ spec:
       labels:
         app: {{ .name }}
     spec:
-      # Vault's stored config for this service bakes in the docker-compose hostname
-      # "keycloak" (JWT issuer-uri, and for user-service the admin API base URL too) — a
-      # plain env var can't override a value that lives inside the secret itself, so we
-      # point that one hostname at the host directly instead.
+      {{- if $.Values.keycloakHostAliasIP }}
+      # Only needed for the local kind trial: Vault's stored config bakes in the
+      # docker-compose hostname "keycloak" (JWT issuer-uri, and for user-service the admin
+      # API base URL too), which a plain env var can't override since it lives inside the
+      # secret value itself. On OKE this isn't needed at all — Keycloak is in-cluster, so
+      # the plain Service name "keycloak" already resolves correctly.
       hostAliases:
         - ip: {{ $.Values.keycloakHostAliasIP }}
           hostnames:
             - keycloak
+      {{- end }}
+      {{- if $.Values.imagePullSecret }}
+      # OCIR repos are private (my OCI CLI token lacks the scope to make them public) — the
+      # local kind trial doesn't need this at all, since kind load docker-image sideloads
+      # images directly and never pulls from a registry.
+      imagePullSecrets:
+        - name: {{ $.Values.imagePullSecret }}
+      {{- end }}
       containers:
         - name: {{ .name }}
           image: {{ .image }}
