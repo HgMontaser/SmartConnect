@@ -229,6 +229,10 @@ jobs:
             --region "${{ secrets.OCI_CLI_REGION }}" \
             --token-version 2.0.0 \
             --kube-endpoint PUBLIC_ENDPOINT
+          # oci ce doesn't tighten this itself — silences the (harmless here: single-tenant,
+          # ephemeral runner, and the file holds an exec reference rather than a static
+          # token) "group/world-readable" warning kubectl prints on every step after this.
+          chmod 600 "$HOME/.kube/config"
 
       # Keycloak's realm/theme ConfigMaps are sourced straight from infra/keycloak/ rather
       # than duplicated into the chart (Helm's .Files can only read within the chart
