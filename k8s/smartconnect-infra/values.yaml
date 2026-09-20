@@ -1,0 +1,5 @@
+# The ingress-nginx LoadBalancer's public IP — used to build the nip.io hostnames in
+# templates/ingress.yaml. Static once assigned (OCI LB IPs don't change on redeploy), but
+# CD overrides this via --set with a fresh `kubectl get svc` lookup on every deploy anyway,
+# so this default only matters for manual `helm upgrade` runs from a laptop.
+publicIP: "51.170.140.178"

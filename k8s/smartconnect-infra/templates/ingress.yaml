@@ -1,0 +1,57 @@
+# Host-based routing through the one free LoadBalancer (Always Free allows exactly one).
+# Hostnames use nip.io (free wildcard DNS: <anything>.<IP>.nip.io resolves to <IP>) since
+# there's no real domain registered for this yet — swap these for real hostnames the day
+# there is one; nothing else about this setup needs to change.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: smartconnect
+  annotations:
+    # Long timeouts for backoffice-app's WebSocket connection to api-gateway's /ws route —
+    # nginx-ingress passes through the Upgrade/Connection headers needed for the WebSocket
+    # handshake by default, no extra config needed for that part.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: keycloak.{{ .Values.publicIP }}.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+    - host: api.{{ .Values.publicIP }}.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8090
+    - host: login.{{ .Values.publicIP }}.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: login-app
+                port:
+                  number: 8080
+    - host: app.{{ .Values.publicIP }}.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backoffice-app
+                port:
+                  number: 8080

@@ -44,15 +44,18 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+          # healthPath defaults to the Spring Boot actuator paths every backend service
+          # exposes; the two nginx-served frontends set it to "/" instead, since they have
+          # no actuator endpoint.
           readinessProbe:
             httpGet:
-              path: /actuator/health/readiness
+              path: {{ .healthPath | default "/actuator/health/readiness" }}
               port: {{ .port }}
             initialDelaySeconds: 15
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /actuator/health/liveness
+              path: {{ .healthPath | default "/actuator/health/liveness" }}
               port: {{ .port }}
             initialDelaySeconds: 20
             periodSeconds: 10
