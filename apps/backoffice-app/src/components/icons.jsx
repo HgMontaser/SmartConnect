@@ -172,3 +172,12 @@ export function AlertIcon() {
     </Icon>
   );
 }
+
+export function ChartIcon() {
+  return (
+    <Icon>
+      <path d="M3 16.5h14" />
+      <path d="M4.5 13l3.5-4 3 2.5 4.5-6" />
+    </Icon>
+  );
+}

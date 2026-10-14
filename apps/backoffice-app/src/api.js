@@ -118,6 +118,14 @@ export function getPlatformMetrics(range, token) {
   return request(`/api/platform/metrics?range=${encodeURIComponent(range)}`, { token });
 }
 
+// One service's traffic per endpoint (per route for api-gateway) over the range.
+export function getEndpointMetrics(service, range, token) {
+  return request(
+    `/api/platform/metrics/endpoints?service=${encodeURIComponent(service)}&range=${encodeURIComponent(range)}`,
+    { token }
+  );
+}
+
 export function listSessions(token) {
   return request('/api/sessions', { token });
 }

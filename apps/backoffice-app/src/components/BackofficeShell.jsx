@@ -3,7 +3,7 @@ import Topbar from './Topbar.jsx';
 import Sidebar from './Sidebar.jsx';
 import Toasts from './Toasts.jsx';
 import { PageSpinner, SectionSpinner } from './Spinner.jsx';
-import { AuditIcon, DevicesIcon, KeyIcon, PulseIcon, ShieldIcon, StreamIcon, UsersIcon } from './icons.jsx';
+import { AuditIcon, ChartIcon, DevicesIcon, KeyIcon, PulseIcon, ShieldIcon, StreamIcon, UsersIcon } from './icons.jsx';
 import useUsers from '../hooks/useUsers.js';
 import useCollection from '../hooks/useCollection.js';
 import useHashRoute from '../hooks/useHashRoute.js';
@@ -16,6 +16,7 @@ const UsersPage = lazy(() => import('../pages/UsersPage.jsx'));
 const RolesPage = lazy(() => import('../pages/RolesPage.jsx'));
 const PermissionsPage = lazy(() => import('../pages/PermissionsPage.jsx'));
 const GatewayHealthPage = lazy(() => import('../pages/GatewayHealthPage.jsx'));
+const TrafficPage = lazy(() => import('../pages/TrafficPage.jsx'));
 const SessionsPage = lazy(() => import('../pages/SessionsPage.jsx'));
 const EventLogPage = lazy(() => import('../pages/EventLogPage.jsx'));
 const AuditPage = lazy(() => import('../pages/AuditPage.jsx'));
@@ -184,6 +185,7 @@ export default function BackofficeShell({ keycloak }) {
       label: 'Platform',
       items: [
         { id: 'gateway', label: 'Gateway health', icon: PulseIcon, permission: P.PLATFORM_READ },
+        { id: 'traffic', label: 'Traffic', icon: ChartIcon, permission: P.PLATFORM_READ },
         { id: 'sessions', label: 'Sessions', icon: DevicesIcon, permission: P.SESSIONS_READ },
         { id: 'events', label: 'Event log', icon: StreamIcon, permission: P.EVENTS_READ },
         { id: 'audit', label: 'Audit', icon: AuditIcon, permission: P.AUDIT_READ },
@@ -238,6 +240,7 @@ export default function BackofficeShell({ keycloak }) {
               <PermissionsPage permissionsState={permissionsState} can={can} api={permissionApi} notify={notify} />
             )}
             {active === 'gateway' && <GatewayHealthPage getToken={getToken} />}
+            {active === 'traffic' && <TrafficPage getToken={getToken} />}
             {active === 'sessions' && (
               <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
             )}

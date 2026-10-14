@@ -3,7 +3,9 @@ package com.smartconnect.apigateway.platform;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.test.StepVerifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -67,5 +69,59 @@ class PlatformMetricsTest {
         assertThatThrownBy(() -> PlatformMetrics.Range.of("7d"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("15m, 1h, 6h, 24h");
+    }
+
+    @Test
+    void endpointQueriesAreValidJsonAndGroupByWhatEachSideHas() throws Exception {
+        JsonNode endpoints = json.readTree(PlatformMetrics.endpointsQuery("user-service", PlatformMetrics.Range.M15, false));
+        assertThat(endpoints.at("/aggs/paths/terms/field").asText()).isEqualTo("uri.keyword");
+        assertThat(endpoints.at("/aggs/paths/aggs/methods/aggs/rateLimited").isMissingNode()).isTrue();
+
+        JsonNode routes = json.readTree(PlatformMetrics.endpointsQuery("api-gateway", PlatformMetrics.Range.M15, true));
+        assertThat(routes.at("/aggs/routes/terms/field").asText()).isEqualTo("routeId.keyword");
+        assertThat(routes.at("/aggs/routes/aggs/rateLimited/filter/bool/filter/1/term/httpStatusCode.keyword").asText()).isEqualTo("429");
+    }
+
+    @Test
+    void parsesEndpointsBusiestFirstAndDropsIdleOnes() throws Exception {
+        JsonNode response = json.readTree("""
+                { "aggregations": { "paths": { "buckets": [
+                  { "key": "/api/roles", "methods": { "buckets": [
+                    { "key": "GET", "requests": { "n": { "value": 10 } }, "errors": { "n": { "value": 0 } }, "p95": { "ms": { "value": 40.0 } } } ] } },
+                  { "key": "/api/users", "methods": { "buckets": [
+                    { "key": "GET", "requests": { "n": { "value": 90 } }, "errors": { "n": { "value": 9 } }, "p95": { "ms": { "value": 80.0 } } },
+                    { "key": "POST", "requests": { "n": { "value": 0 } }, "errors": { "n": { "value": 0 } }, "p95": { "ms": { "value": 0.0 } } } ] } } ] } } }
+                """);
+
+        PlatformMetrics.EndpointsView view = PlatformMetrics.parseEndpoints(response, "user-service", PlatformMetrics.Range.H1, false);
+
+        assertThat(view.grouping()).isEqualTo("endpoint");
+        assertThat(view.rows()).containsExactly(
+                new PlatformMetrics.EndpointMetrics("GET", "/api/users", 90, 9, 0.1, null, 80.0),
+                new PlatformMetrics.EndpointMetrics("GET", "/api/roles", 10, 0, 0.0, null, 40.0));
+    }
+
+    @Test
+    void parsesGatewayRoutesWithTheirRateLimitedCount() throws Exception {
+        JsonNode response = json.readTree("""
+                { "aggregations": { "routes": { "buckets": [
+                  { "key": "discovered-user-service", "requests": { "n": { "value": 100 } }, "errors": { "n": { "value": 0 } },
+                    "rateLimited": { "n": { "value": 25 } }, "p95": { "ms": { "value": 120.0 } } } ] } } }
+                """);
+
+        PlatformMetrics.EndpointsView view = PlatformMetrics.parseEndpoints(response, "api-gateway", PlatformMetrics.Range.H1, true);
+
+        assertThat(view.grouping()).isEqualTo("route");
+        assertThat(view.rows()).containsExactly(
+                new PlatformMetrics.EndpointMetrics(null, "discovered-user-service", 100, 0, 0.0, 25.0, 120.0));
+    }
+
+    @Test
+    void refusesAServiceNameThatIsNotOne() {
+        PlatformMetrics metrics = new PlatformMetrics(WebClient.builder(), "http://localhost:1", "idx", "api-gateway");
+
+        StepVerifier.create(metrics.fetchEndpoints("x\" } }, \"evil", PlatformMetrics.Range.H1))
+                .expectErrorSatisfies(e -> assertThat(e).isInstanceOf(ResponseStatusException.class).hasMessageContaining("400"))
+                .verify();
     }
 }

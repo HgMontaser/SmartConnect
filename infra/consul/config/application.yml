@@ -13,11 +13,13 @@ management:
   otlp:
     tracing:
       endpoint: http://jaeger:4318/v1/traces
-  # Request latency percentiles for every service - the Kibana dashboard's p95 panel reads these.
+  # Request latency percentiles for every service (Kibana dashboard, backoffice traffic views);
+  # spring.cloud.gateway.requests is api-gateway's per-route timer.
   metrics:
     distribution:
       percentiles:
         http.server.requests: 0.5,0.95,0.99
+        spring.cloud.gateway.requests: 0.5,0.95,0.99
 
 # One log format fleet-wide, with trace/span ids so a trace in Jaeger leads to its logs in Kibana.
 logging:

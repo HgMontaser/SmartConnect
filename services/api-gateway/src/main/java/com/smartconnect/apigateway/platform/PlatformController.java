@@ -57,6 +57,14 @@ public class PlatformController {
         return metrics.fetch(PlatformMetrics.Range.of(range));
     }
 
+    /** One service's traffic per endpoint - or, for the gateway, per route - over {@code range}. */
+    @GetMapping("/metrics/endpoints")
+    @PreAuthorize("hasAuthority('platform:read')")
+    public Mono<PlatformMetrics.EndpointsView> endpointMetrics(@RequestParam String service,
+                                                               @RequestParam(defaultValue = "1h") String range) {
+        return metrics.fetchEndpoints(service, PlatformMetrics.Range.of(range));
+    }
+
     @GetMapping("/services")
     @PreAuthorize("hasAuthority('platform:read')")
     public Mono<List<ServiceView>> services() {
