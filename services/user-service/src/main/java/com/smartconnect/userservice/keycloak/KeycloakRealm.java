@@ -24,6 +24,10 @@ import java.util.Map;
 public class KeycloakRealm {
 
     public static final String SYSTEM_ATTRIBUTE = "smartconnect.system";
+    /** Service that defines a permission (published via the permission catalog). */
+    public static final String OWNER_ATTRIBUTE = "smartconnect.owner";
+    /** Set when the owning service stopped declaring the permission; cleared if it comes back. */
+    public static final String ORPHANED_ATTRIBUTE = "smartconnect.orphaned";
 
     private final Keycloak keycloak;
     private final String realmName;
@@ -74,13 +78,38 @@ public class KeycloakRealm {
     }
 
     public static boolean isSystem(RoleRepresentation role) {
-        Map<String, List<String>> attributes = role.getAttributes();
-        return attributes != null && attributes.getOrDefault(SYSTEM_ATTRIBUTE, List.of()).contains("true");
+        return "true".equals(attribute(role, SYSTEM_ATTRIBUTE));
     }
 
     public static void markSystem(RoleRepresentation role) {
+        setAttribute(role, SYSTEM_ATTRIBUTE, "true");
+    }
+
+    public static String owner(RoleRepresentation role) {
+        return attribute(role, OWNER_ATTRIBUTE);
+    }
+
+    public static boolean isOrphaned(RoleRepresentation role) {
+        return "true".equals(attribute(role, ORPHANED_ATTRIBUTE));
+    }
+
+    public static String attribute(RoleRepresentation role, String key) {
+        Map<String, List<String>> attributes = role.getAttributes();
+        if (attributes == null) {
+            return null;
+        }
+        List<String> values = attributes.getOrDefault(key, List.of());
+        return values.isEmpty() ? null : values.get(0);
+    }
+
+    /** {@code value == null} removes the attribute. */
+    public static void setAttribute(RoleRepresentation role, String key, String value) {
         Map<String, List<String>> attributes = role.getAttributes() == null ? new HashMap<>() : new HashMap<>(role.getAttributes());
-        attributes.put(SYSTEM_ATTRIBUTE, List.of("true"));
+        if (value == null) {
+            attributes.remove(key);
+        } else {
+            attributes.put(key, List.of(value));
+        }
         role.setAttributes(attributes);
     }
 }

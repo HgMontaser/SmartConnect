@@ -29,7 +29,7 @@ export default function PermissionsPage({ permissionsState, can, api, notify }) 
     <>
       <PageHeader
         title="Permissions"
-        subtitle="The individual actions the API checks. Grant them to users by adding them to a role."
+        subtitle="The actions the APIs check. Services publish their own; grant them to users through roles."
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search permissions"
@@ -52,90 +52,119 @@ export default function PermissionsPage({ permissionsState, can, api, notify }) 
       {!loading && groups.length === 0 && <div className="table-card table-empty">No permissions found.</div>}
 
       {!loading &&
-        groups.map(([resource, items]) => (
-          <section key={resource} className="table-card">
-            <div className="group-header">
-              <span className="group-title">{resource}</span>
-              <span className="group-count">{items.length}</span>
-            </div>
-            <table className="data-table data-table--fixed">
-              <thead>
-                <tr>
-                  <th>Permission</th>
-                  <th>Granted by</th>
-                  {canWrite && <th className="col-actions" aria-label="Actions" />}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((perm) => (
-                  <tr key={perm.name}>
-                    <td>
-                      <div className="name-cell">
-                        <span className="name-primary">
-                          <span className="mono-strong">
-                            <span className="perm-resource">{resource}:</span>
-                            {splitPermission(perm.name).action}
-                          </span>
-                          {perm.system && (
-                            <span className="system-badge" title="Checked by the API itself, can't be deleted">
-                              <LockIcon />
-                              system
-                            </span>
-                          )}
-                        </span>
-                        <span className="name-secondary">{perm.description || 'No description'}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="role-pill-group">
-                        {perm.roles.map((r) => (
-                          <RolePill key={r} role={r} />
-                        ))}
-                      </div>
-                    </td>
-                    {canWrite && (
-                      <td>
-                        <div className="row-actions">
-                          <button
-                            type="button"
-                            className="icon-button"
-                            onClick={() => setDialog({ kind: 'edit', permission: perm })}
-                            title="Edit"
-                            aria-label="Edit permission"
-                          >
-                            <EditIcon />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-button icon-button--danger"
-                            disabled={perm.system}
-                            title={perm.system ? "System permissions can't be deleted" : 'Delete'}
-                            aria-label="Delete permission"
-                            onClick={() =>
-                              setDialog({
-                                kind: 'confirm',
-                                title: 'Delete permission',
-                                message: `Delete ${perm.name}? It will be removed from ${perm.roles.length} role${perm.roles.length === 1 ? '' : 's'}.`,
-                                confirmLabel: 'Delete permission',
-                                danger: true,
-                                onConfirm: async () => {
-                                  await api.remove(perm.name);
-                                  notify(`Permission ${perm.name} deleted`);
-                                },
-                              })
-                            }
-                          >
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      </td>
-                    )}
+        groups.map(([resource, items]) => {
+          const owners = new Set(items.map((p) => p.owner || null));
+          const groupOwner = owners.size === 1 ? items[0].owner : null;
+          return (
+            <section key={resource} className="table-card">
+              <div className="group-header">
+                <span className="group-title">{resource}</span>
+                <span className="group-count">{items.length}</span>
+                {groupOwner && (
+                  <span className="owner-badge" title="Defined by this service and synced automatically">
+                    managed by {groupOwner}
+                  </span>
+                )}
+              </div>
+              <table className="data-table data-table--fixed">
+                <thead>
+                  <tr>
+                    <th>Permission</th>
+                    <th>Granted by</th>
+                    {canWrite && <th className="col-actions" aria-label="Actions" />}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        ))}
+                </thead>
+                <tbody>
+                  {items.map((perm) => {
+                    const managed = Boolean(perm.owner);
+                    const deletable = !perm.system && (!managed || perm.orphaned);
+                    return (
+                      <tr key={perm.name}>
+                        <td>
+                          <div className="name-cell">
+                            <span className="name-primary">
+                              <span className="mono-strong">
+                                <span className="perm-resource">{resource}:</span>
+                                {splitPermission(perm.name).action}
+                              </span>
+                              {perm.system && (
+                                <span className="system-badge" title="Checked by the API itself, can't be deleted">
+                                  <LockIcon />
+                                  system
+                                </span>
+                              )}
+                              {perm.owner && !groupOwner && <span className="owner-badge">{perm.owner}</span>}
+                              {perm.orphaned && (
+                                <span
+                                  className="orphan-badge"
+                                  title={`${perm.owner} no longer declares this permission. Delete it once you're sure nothing needs it.`}
+                                >
+                                  orphaned
+                                </span>
+                              )}
+                            </span>
+                            <span className="name-secondary">{perm.description || 'No description'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="role-pill-group">
+                            {perm.roles.map((r) => (
+                              <RolePill key={r} role={r} />
+                            ))}
+                          </div>
+                        </td>
+                        {canWrite && (
+                          <td>
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="icon-button"
+                                onClick={() => setDialog({ kind: 'edit', permission: perm })}
+                                disabled={managed}
+                                title={managed ? `Managed by ${perm.owner} - change it in that service` : 'Edit'}
+                                aria-label="Edit permission"
+                              >
+                                <EditIcon />
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-button icon-button--danger"
+                                disabled={!deletable}
+                                title={
+                                  perm.system
+                                    ? "System permissions can't be deleted"
+                                    : !deletable
+                                      ? `Managed by ${perm.owner} - remove it from that service first`
+                                      : 'Delete'
+                                }
+                                aria-label="Delete permission"
+                                onClick={() =>
+                                  setDialog({
+                                    kind: 'confirm',
+                                    title: 'Delete permission',
+                                    message: `Delete ${perm.name}? It will be removed from ${perm.roles.length} role${perm.roles.length === 1 ? '' : 's'}.`,
+                                    confirmLabel: 'Delete permission',
+                                    danger: true,
+                                    onConfirm: async () => {
+                                      await api.remove(perm.name);
+                                      notify(`Permission ${perm.name} deleted`);
+                                    },
+                                  })
+                                }
+                              >
+                                <TrashIcon />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
+          );
+        })}
 
       <Suspense fallback={<SectionSpinner overlay />}>
         {(dialog?.kind === 'create' || dialog?.kind === 'edit') && (

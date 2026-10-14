@@ -45,6 +45,40 @@ Keycloak is the only store — there's no extra database.
 | `GET /api/permissions[/{name}]` | `permissions:read` |
 | `POST/PUT/DELETE /api/permissions[/{name}]` | `permissions:write` |
 
+## Adding a business service
+
+A business service defines its own permissions; SmartConnect decides who gets them.
+
+1. Depend on `smartconnect-commons` and `spring-kafka`, and set the service name:
+   ```yaml
+   smartconnect:
+     permissions:
+       service: billing-service
+       catalog:                       # omit if the permissions live in your own database
+         - name: billing:read
+           description: View invoices
+   ```
+2. Keeping permissions in your own database instead? Register a `PermissionCatalogProvider`
+   bean that reads them (e.g. `SELECT name, description FROM permissions`), and call
+   `PermissionCatalogPublisher.publish()` after every change to that table.
+3. Guard endpoints with `@PreAuthorize("hasAuthority('billing:read')")`. Startup fails if a
+   checked permission isn't in the catalog (SmartConnect's system permissions are exempt).
+4. Add a gateway route, a Vault entry in `infra/vault/seed.sh` and a compose service.
+   After editing `seed.sh`, run `docker compose restart vault` so it re-seeds.
+
+What happens: on startup (and on every `publish()`) commons sends the full catalog to the
+compacted `permission-catalog` Kafka topic. user-service syncs it into Keycloak: new
+permissions are created and granted to `admin`, descriptions are updated, and permissions the
+service no longer declares are flagged **orphaned** (never deleted automatically). In the
+backoffice you add them to roles as usual.
+
+Rules:
+- A service owns whole resources: the first to declare `billing:*` owns it, and other services
+  can't declare `billing:anything`. `users`, `roles` and `permissions` are reserved.
+- Service-owned permissions can't be created, edited or deleted in the backoffice, except that
+  an orphaned one can be deleted.
+- Definitions flow one way only, service → SmartConnect. Role assignments live only in Keycloak.
+
 ## Get a test token (realm `smartconnect`, seed user `admin.seed` / `SmartConnect123!`)
 
 ```

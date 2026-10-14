@@ -5,3 +5,4 @@ com.smartconnect.commons.correlation.ReactiveCorrelationIdAutoConfiguration
 com.smartconnect.commons.error.ErrorHandlingAutoConfiguration
 com.smartconnect.commons.observability.ObservabilityAutoConfiguration
 com.smartconnect.commons.kafka.KafkaObservabilityAutoConfiguration
+com.smartconnect.commons.permissions.PermissionCatalogAutoConfiguration
