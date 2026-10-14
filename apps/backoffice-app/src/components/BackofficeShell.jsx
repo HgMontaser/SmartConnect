@@ -1,8 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Topbar from './Topbar.jsx';
 import Sidebar from './Sidebar.jsx';
 import Toasts from './Toasts.jsx';
 import { PageSpinner, SectionSpinner } from './Spinner.jsx';
+import PageErrorBoundary from './PageErrorBoundary.jsx';
+import lazyWithReload from '../utils/lazyWithReload.js';
 import { AuditIcon, ChartIcon, DevicesIcon, KeyIcon, PulseIcon, ShieldIcon, StreamIcon, UsersIcon } from './icons.jsx';
 import useUsers from '../hooks/useUsers.js';
 import useCollection from '../hooks/useCollection.js';
@@ -12,16 +14,16 @@ import * as api from '../api.js';
 import { P, permissionsFromToken } from '../permissions.js';
 
 // Pages load on first visit; the shell (topbar, sidebar) stays up while they do.
-const UsersPage = lazy(() => import('../pages/UsersPage.jsx'));
-const RolesPage = lazy(() => import('../pages/RolesPage.jsx'));
-const PermissionsPage = lazy(() => import('../pages/PermissionsPage.jsx'));
-const GatewayHealthPage = lazy(() => import('../pages/GatewayHealthPage.jsx'));
-const TrafficPage = lazy(() => import('../pages/TrafficPage.jsx'));
-const SessionsPage = lazy(() => import('../pages/SessionsPage.jsx'));
-const EventLogPage = lazy(() => import('../pages/EventLogPage.jsx'));
-const AuditPage = lazy(() => import('../pages/AuditPage.jsx'));
-const EventStreamRail = lazy(() => import('./EventStreamRail.jsx'));
-const NoAccess = lazy(() => import('./NoAccess.jsx'));
+const UsersPage = lazyWithReload(() => import('../pages/UsersPage.jsx'));
+const RolesPage = lazyWithReload(() => import('../pages/RolesPage.jsx'));
+const PermissionsPage = lazyWithReload(() => import('../pages/PermissionsPage.jsx'));
+const GatewayHealthPage = lazyWithReload(() => import('../pages/GatewayHealthPage.jsx'));
+const TrafficPage = lazyWithReload(() => import('../pages/TrafficPage.jsx'));
+const SessionsPage = lazyWithReload(() => import('../pages/SessionsPage.jsx'));
+const EventLogPage = lazyWithReload(() => import('../pages/EventLogPage.jsx'));
+const AuditPage = lazyWithReload(() => import('../pages/AuditPage.jsx'));
+const EventStreamRail = lazyWithReload(() => import('./EventStreamRail.jsx'));
+const NoAccess = lazyWithReload(() => import('./NoAccess.jsx'));
 
 const MAX_EVENTS = 50;
 const TOAST_MS = 3200;
@@ -217,36 +219,38 @@ export default function BackofficeShell({ keycloak }) {
       <div className="shell-body">
         <Sidebar sections={navSections} active={active} onNavigate={navigate} />
         <main className="shell-main">
-          <Suspense fallback={<SectionSpinner label="Loading page…" />}>
-            {active === 'users' && (
-              <UsersPage
-                usersState={usersState}
-                roles={roleOptions}
-                can={can}
-                currentUserId={tokenParsed?.sub}
-                notify={notify}
-              />
-            )}
-            {active === 'roles' && (
-              <RolesPage
-                rolesState={rolesState}
-                permissions={permissionOptions}
-                can={can}
-                api={roleApi}
-                notify={notify}
-              />
-            )}
-            {active === 'permissions' && (
-              <PermissionsPage permissionsState={permissionsState} can={can} api={permissionApi} notify={notify} />
-            )}
-            {active === 'gateway' && <GatewayHealthPage getToken={getToken} />}
-            {active === 'traffic' && <TrafficPage getToken={getToken} />}
-            {active === 'sessions' && (
-              <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
-            )}
-            {active === 'events' && <EventLogPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
-            {active === 'audit' && <AuditPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
-          </Suspense>
+          <PageErrorBoundary key={active}>
+            <Suspense fallback={<SectionSpinner label="Loading page…" />}>
+              {active === 'users' && (
+                <UsersPage
+                  usersState={usersState}
+                  roles={roleOptions}
+                  can={can}
+                  currentUserId={tokenParsed?.sub}
+                  notify={notify}
+                />
+              )}
+              {active === 'roles' && (
+                <RolesPage
+                  rolesState={rolesState}
+                  permissions={permissionOptions}
+                  can={can}
+                  api={roleApi}
+                  notify={notify}
+                />
+              )}
+              {active === 'permissions' && (
+                <PermissionsPage permissionsState={permissionsState} can={can} api={permissionApi} notify={notify} />
+              )}
+              {active === 'gateway' && <GatewayHealthPage getToken={getToken} />}
+              {active === 'traffic' && <TrafficPage getToken={getToken} />}
+              {active === 'sessions' && (
+                <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
+              )}
+              {active === 'events' && <EventLogPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
+              {active === 'audit' && <AuditPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
+            </Suspense>
+          </PageErrorBoundary>
         </main>
         {active === 'users' && (
           <Suspense fallback={null}>

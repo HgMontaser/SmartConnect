@@ -1,12 +1,13 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import lazyWithReload from '../utils/lazyWithReload.js';
 import PageHeader from '../components/PageHeader.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { SectionSpinner } from '../components/Spinner.jsx';
 import { EditIcon, LockIcon, TrashIcon } from '../components/icons.jsx';
 import { P } from '../permissions.js';
 
-const RoleFormModal = lazy(() => import('../components/RoleFormModal.jsx'));
-const ConfirmDialog = lazy(() => import('../components/ConfirmDialog.jsx'));
+const RoleFormModal = lazyWithReload(() => import('../components/RoleFormModal.jsx'));
+const ConfirmDialog = lazyWithReload(() => import('../components/ConfirmDialog.jsx'));
 
 export default function RolesPage({ rolesState, permissions, can, api, notify }) {
   const { items: roles, loading, error, setError } = rolesState;

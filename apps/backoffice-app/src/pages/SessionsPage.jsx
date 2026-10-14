@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
+import lazyWithReload from '../utils/lazyWithReload.js';
 import PageHeader from '../components/PageHeader.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { SectionSpinner } from '../components/Spinner.jsx';
@@ -8,7 +9,7 @@ import { timeAgo } from '../utils/time.js';
 import { P } from '../permissions.js';
 import * as api from '../api.js';
 
-const ConfirmDialog = lazy(() => import('../components/ConfirmDialog.jsx'));
+const ConfirmDialog = lazyWithReload(() => import('../components/ConfirmDialog.jsx'));
 
 export default function SessionsPage({ getToken, can, currentSessionId, notify }) {
   const load = useCallback(() => api.listSessions(getToken()), [getToken]);

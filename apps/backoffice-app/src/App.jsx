@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import lazyWithReload from './utils/lazyWithReload.js';
+import PageErrorBoundary from './components/PageErrorBoundary.jsx';
 import keycloak from './keycloak.js';
 import { PageSpinner } from './components/Spinner.jsx';
 
 // Each screen is its own chunk: a signed-out visitor never downloads the backoffice shell.
-const BackofficeShell = lazy(() => import('./components/BackofficeShell.jsx'));
-const NotSignedIn = lazy(() => import('./components/NotSignedIn.jsx'));
+const BackofficeShell = lazyWithReload(() => import('./components/BackofficeShell.jsx'));
+const NotSignedIn = lazyWithReload(() => import('./components/NotSignedIn.jsx'));
 
 export default function App() {
   // 'checking' | 'authenticated' | 'unauthenticated' | 'error'
@@ -81,8 +83,10 @@ export default function App() {
   }
 
   return (
-    <Suspense fallback={<PageSpinner label="Loading backoffice…" />}>
-      <BackofficeShell keycloak={keycloak} />
-    </Suspense>
+    <PageErrorBoundary fullScreen>
+      <Suspense fallback={<PageSpinner label="Loading backoffice…" />}>
+        <BackofficeShell keycloak={keycloak} />
+      </Suspense>
+    </PageErrorBoundary>
   );
 }

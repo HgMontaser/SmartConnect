@@ -1,4 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import lazyWithReload from '../utils/lazyWithReload.js';
 import PageHeader from '../components/PageHeader.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import UsersTable from '../components/UsersTable.jsx';
@@ -6,9 +7,9 @@ import { SectionSpinner } from '../components/Spinner.jsx';
 import { P } from '../permissions.js';
 
 // Dialogs are only downloaded the first time one is opened.
-const UserFormModal = lazy(() => import('../components/UserFormModal.jsx'));
-const ResetPasswordModal = lazy(() => import('../components/ResetPasswordModal.jsx'));
-const ConfirmDialog = lazy(() => import('../components/ConfirmDialog.jsx'));
+const UserFormModal = lazyWithReload(() => import('../components/UserFormModal.jsx'));
+const ResetPasswordModal = lazyWithReload(() => import('../components/ResetPasswordModal.jsx'));
+const ConfirmDialog = lazyWithReload(() => import('../components/ConfirmDialog.jsx'));
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All' },

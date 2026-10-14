@@ -1,4 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import lazyWithReload from '../utils/lazyWithReload.js';
 import PageHeader from '../components/PageHeader.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { SectionSpinner } from '../components/Spinner.jsx';
@@ -6,8 +7,8 @@ import RolePill from '../components/RolePill.jsx';
 import { EditIcon, LockIcon, TrashIcon } from '../components/icons.jsx';
 import { P, groupPermissions, splitPermission } from '../permissions.js';
 
-const PermissionFormModal = lazy(() => import('../components/PermissionFormModal.jsx'));
-const ConfirmDialog = lazy(() => import('../components/ConfirmDialog.jsx'));
+const PermissionFormModal = lazyWithReload(() => import('../components/PermissionFormModal.jsx'));
+const ConfirmDialog = lazyWithReload(() => import('../components/ConfirmDialog.jsx'));
 
 export default function PermissionsPage({ permissionsState, can, api, notify }) {
   const { items: permissions, loading, error, setError } = permissionsState;
