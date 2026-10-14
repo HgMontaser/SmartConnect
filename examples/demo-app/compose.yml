@@ -19,6 +19,7 @@ services:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
       CONSUL_HOST: consul
+      CONSUL_TOKEN_FILE: /run/secrets/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       # Example only - a real service reads its client secret from Vault.
       DEMO_SERVICE_CLIENT_SECRET: demo-service-dev-secret
@@ -29,6 +30,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    volumes:
+      - ./consul/demo-service.token:/run/secrets/consul-token:ro
     networks:
       - smartconnect
 

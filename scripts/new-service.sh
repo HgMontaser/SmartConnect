@@ -254,6 +254,12 @@ if [ -n "$EXAMPLE" ]; then MARKER="new-service:examples"; INDENT="        "; els
 awk -v line="$INDENT<module>$MODULE</module>" -v marker="$MARKER" \
   'index($0, marker) { print line } { print }' pom.xml > pom.xml.tmp && mv pom.xml.tmp pom.xml
 
+# --- Consul ACL token: Consul creates a least-privilege token for every token file it finds
+if [ -n "$EXAMPLE" ]; then TOKEN_DIR="examples/$EXAMPLE/consul"; TOKEN_MOUNT="./consul/$NAME.token"
+else TOKEN_DIR="infra/consul/acl"; TOKEN_MOUNT="./infra/consul/acl/$NAME.token"; fi
+mkdir -p "$TOKEN_DIR"
+{ uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid; } | tr 'A-Z' 'a-z' > "$TOKEN_DIR/$NAME.token"
+
 # --- compose entry (an example's compose file lives two levels down, so its context is ../..)
 BUILD_CONTEXT="."
 PROFILE_LINE=""
@@ -273,6 +279,7 @@ SERVICE_BLOCK="  $NAME:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
       CONSUL_HOST: consul
+      CONSUL_TOKEN_FILE: /run/secrets/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
     depends_on:
       vault:
@@ -281,6 +288,8 @@ SERVICE_BLOCK="  $NAME:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    volumes:
+      - $TOKEN_MOUNT:/run/secrets/consul-token:ro
     networks:
       - smartconnect
 "
@@ -312,7 +321,8 @@ else
 fi
 
 echo
-echo "Created $MODULE and registered it in pom.xml and $COMPOSE."
+echo "Created $MODULE and registered it in pom.xml and $COMPOSE (Consul token: $TOKEN_DIR/$NAME.token)."
+echo "Restart Consul once so it creates the new service's token: docker compose restart consul"
 echo "Next:"
 if [ -n "$EXAMPLE" ]; then
   echo "  docker compose --profile $EXAMPLE up -d --build $NAME"

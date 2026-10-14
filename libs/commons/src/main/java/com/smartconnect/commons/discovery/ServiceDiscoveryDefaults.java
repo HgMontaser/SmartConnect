@@ -19,6 +19,7 @@ import java.util.UUID;
  * already knows where Consul is.
  *
  * <ul>
+ *   <li>Authenticates to Consul with the ACL token in {@code CONSUL_TOKEN_FILE}, if set.</li>
  *   <li>Config changes in Consul KV reach the service within a few seconds.</li>
  *   <li>Registers by IP (containers have no stable hostname) under a per-process instance id.</li>
  *   <li>TTL heartbeat carrying actuator health, re-registering if Consul forgets the service
@@ -47,6 +48,11 @@ public class ServiceDiscoveryDefaults implements EnvironmentPostProcessor, Order
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         Map<String, Object> defaults = new HashMap<>();
         defaults.put("spring.cloud.consul.host", "${CONSUL_HOST:consul}");
+        // Consul ACL token (discovery + config) from the file the container mounts.
+        String token = readToken(environment.getProperty("CONSUL_TOKEN_FILE"));
+        if (token != null) {
+            defaults.put("spring.cloud.consul.token", token);
+        }
         defaults.put("spring.cloud.consul.port", "${CONSUL_PORT:8500}");
         defaults.put("spring.cloud.consul.config.format", "YAML");
         // The config watch long-polls each KV location in turn; with the default 55s wait a
@@ -67,5 +73,17 @@ public class ServiceDiscoveryDefaults implements EnvironmentPostProcessor, Order
         defaults.put("spring.cloud.consul.discovery.metadata." + GatewayRouteMetadata.TIMEOUT, "${smartconnect.gateway.timeout:}");
 
         environment.getPropertySources().addLast(new MapPropertySource(PROPERTY_SOURCE, defaults));
+    }
+
+    private static String readToken(String file) {
+        if (file == null || file.isBlank()) {
+            return null;
+        }
+        try {
+            String token = java.nio.file.Files.readString(java.nio.file.Path.of(file)).trim();
+            return token.isEmpty() ? null : token;
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("CONSUL_TOKEN_FILE is set but unreadable: " + file, e);
+        }
     }
 }

@@ -1,6 +1,8 @@
 # Dev-only shared values, defined once and referenced below.
 x-dev-secrets:
   user-service-client-secret: &user-service-client-secret "user-service-dev-secret"
+  # Consul root token (ACL management, UI login). Per-service tokens are in infra/consul/acl/.
+  consul-root-token: &consul-root-token "0f39b09d-567c-4652-8ff4-a2982d2ce653"
 
 # Example apps (examples/<name>/compose.yml) are included here but only start with their
 # profile, e.g. `docker compose --profile demo-app up -d --build`.
@@ -62,9 +64,14 @@ services:
     # Dev mode is in-memory: the entrypoint loads infra/consul/config into KV on every start
     # (see infra/consul/entrypoint.sh) and the healthcheck only passes once that's done.
     entrypoint: ["sh", "/entrypoint.sh"]
+    environment:
+      # The CLI (entrypoint, healthcheck) authenticates with the root token.
+      CONSUL_HTTP_TOKEN: *consul-root-token
     volumes:
       - ./infra/consul/entrypoint.sh:/entrypoint.sh:ro
       - ./infra/consul/config:/consul-config:ro
+      - ./infra/consul/acl:/consul-acl:ro
+      - ./examples:/examples:ro
     networks:
       - smartconnect
     healthcheck:
@@ -277,6 +284,7 @@ services:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
       CONSUL_HOST: consul
+      CONSUL_TOKEN_FILE: /run/secrets/consul-token
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       ELASTICSEARCH_HOST: http://elasticsearch:9200
@@ -289,6 +297,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./infra/consul/acl/api-gateway.token:/run/secrets/consul-token:ro
     networks:
       - smartconnect
 
@@ -309,6 +319,7 @@ services:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
       CONSUL_HOST: consul
+      CONSUL_TOKEN_FILE: /run/secrets/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
@@ -320,6 +331,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+    volumes:
+      - ./infra/consul/acl/user-service.token:/run/secrets/consul-token:ro
     networks:
       - smartconnect
 
@@ -340,6 +353,7 @@ services:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
       CONSUL_HOST: consul
+      CONSUL_TOKEN_FILE: /run/secrets/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
@@ -351,6 +365,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    volumes:
+      - ./infra/consul/acl/notification-service.token:/run/secrets/consul-token:ro
     networks:
       - smartconnect
 

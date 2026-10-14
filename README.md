@@ -17,7 +17,7 @@ Reachable at:
 - api-gateway: http://localhost:8090
 - Keycloak admin console: http://localhost:8080 (admin / admin)
 - Vault UI: http://localhost:8200 (token: `smartconnect-root-token`)
-- Consul UI: http://localhost:8500 (registered services, health, KV config)
+- Consul UI: http://localhost:8500 (log in with the root token `0f39b09d-567c-4652-8ff4-a2982d2ce653`)
 - Jaeger (traces): http://localhost:16686
 - Kibana: http://localhost:5601
 - Elasticsearch: http://localhost:9200
@@ -68,6 +68,13 @@ http://localhost:5174 - each page appears only with its permission:
   `docker compose restart consul`.
 - Fleet-wide Consul defaults live in commons (`ServiceDiscoveryDefaults`), so a service only
   needs the two Consul starters and `spring.config.import: "vault://,consul:"`.
+- **ACLs, deny by default.** Each service has its own token in a file -
+  `infra/consul/acl/<service>.token` (or `examples/<app>/consul/`), mounted into the container
+  and read via `CONSUL_TOKEN_FILE`. On every start Consul creates a token per file that may
+  register only that service, discover the others, and read only `config/application` and
+  `config/<service>` - no writes. Anonymous requests see and do nothing. The root token (in
+  `docker-compose.yml`) is for the UI and the Consul container itself. After adding a token
+  file, `docker compose restart consul`. These are dev tokens; generate real ones per environment.
 
 ## Events
 

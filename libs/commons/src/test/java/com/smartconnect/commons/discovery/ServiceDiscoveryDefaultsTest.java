@@ -16,7 +16,7 @@ class ServiceDiscoveryDefaultsTest {
     @Test
     void serviceSettingsOverrideDefaults() {
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getSystemProperties().put("spring.cloud.consul.host", "elsewhere");
+        props(environment).put("spring.cloud.consul.host", "elsewhere");
         new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
 
         assertThat(environment.getProperty("spring.cloud.consul.host")).isEqualTo("elsewhere");
@@ -26,16 +26,46 @@ class ServiceDiscoveryDefaultsTest {
     @Test
     void publishesGatewayRoutesAsMetadata() {
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getSystemProperties().put("smartconnect.gateway.routes", "/api/x/**");
+        props(environment).put("smartconnect.gateway.routes", "/api/x/**");
         new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
 
         assertThat(environment.getProperty("spring.cloud.consul.discovery.metadata." + GatewayRouteMetadata.ROUTES)).isEqualTo("/api/x/**");
         assertThat(environment.getProperty("spring.cloud.consul.discovery.metadata." + GatewayRouteMetadata.SCHEME)).isEqualTo("http");
     }
 
+    @Test
+    void readsTheConsulTokenFromTheMountedFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.writeString(dir.resolve("consul-token"), "  abc-123\n");
+        StandardEnvironment environment = new StandardEnvironment();
+        props(environment).put("CONSUL_TOKEN_FILE", file.toString());
+        new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("spring.cloud.consul.token")).isEqualTo("abc-123");
+    }
+
+    @Test
+    void noTokenFileMeansNoToken() {
+        StandardEnvironment environment = new StandardEnvironment();
+        new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("spring.cloud.consul.token")).isNull();
+    }
+
+    /** An isolated property source - getSystemProperties() would mutate the real JVM properties. */
+    private static java.util.Map<String, Object> props(StandardEnvironment environment) {
+        var source = environment.getPropertySources().get("test");
+        if (source == null) {
+            source = new org.springframework.core.env.MapPropertySource("test", new java.util.HashMap<>());
+            environment.getPropertySources().addFirst(source);
+        }
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> map = (java.util.Map<String, Object>) source.getSource();
+        return map;
+    }
+
     private static String instanceIdAfterPostProcessing() {
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getSystemProperties().put("spring.application.name", "svc");
+        props(environment).put("spring.application.name", "svc");
         new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
         return environment.getProperty("spring.cloud.consul.discovery.instance-id");
     }
