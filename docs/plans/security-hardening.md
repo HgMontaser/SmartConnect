@@ -1,0 +1,138 @@
+# Security hardening plan
+
+Written 2026-10-14, to start 2026-10-15. Local Docker only - nothing deploys anywhere.
+
+## Why
+
+Secrets left git on 2026-10-14 (`secrets-init`, Vault AppRoles, Consul ACLs). Everything
+else in the stack still runs open:
+
+| Gap | Today | Who can exploit it |
+| --- | --- | --- |
+| Published ports | Every port binds `0.0.0.0`: Redis 6379, Kafka 9092, Elasticsearch 9200, user-service 8081, notification-service 8082, ... | Anyone on the same network (café Wi-Fi), with no credentials |
+| Kafka | `PLAINTEXT`, no auth, no ACLs | Anything that reaches it reads or writes every topic, payloads included (usernames, emails) |
+| Redis | No password | Can wipe or forge the gateway's rate-limit buckets |
+| Elasticsearch / Kibana | `xpack.security.enabled: false` | Reads every log line and metric, can delete indices |
+| Keycloak master admin | `admin` / `admin` in compose | Full control of the identity provider |
+| Seed user | `SmartConnect123!` in the README and realm export | Admin of the backoffice |
+| TLS | None, anywhere | Anyone on the path reads tokens and traffic |
+
+## Principles (same as the secrets work)
+
+- One generated credential **per service**, created by `secrets-init` from `services.list`,
+  never overwritten, never in git. Each service mounts or is served only its own.
+- Services get secrets from **Vault** (their AppRole can read only `secret/smartconnect/<svc>`);
+  non-secret config (protocol, mechanism, hosts) goes in **Consul KV**.
+- Least privilege: each credential can do only what that service does.
+- A one-shot `<thing>-init` container per system sets users and permissions up idempotently
+  on every start, like `keycloak-init` and `kibana-init` already do.
+- `scripts/show-secret.sh` prints any credential a person needs (Kibana login, admin console).
+- Integration tests keep their own throwaway containers. They configure security themselves
+  or stay open, never borrow stack credentials.
+
+## Phases
+
+Each phase is one commit, verified on its own. The order runs from biggest risk reduction
+per hour to least.
+
+### Phase 0 - stop exposing everything to the network (≈30 min)
+
+The cheapest and most urgent fix: today nothing needs credentials *and* everything is reachable from the LAN.
+
+- Bind every published port to `127.0.0.1` (`"127.0.0.1:6379:6379"`), so the stack is reachable only from this Mac.
+- Stop publishing ports nobody should call directly: user-service 8081, notification-service
+  8082, Redis 6379, Kafka 9092 (the `EXTERNAL` listener goes too unless something on the host needs it). Then every call goes through the gateway: rate limits, JWT checks, routing.
+  Keep, on localhost: gateway 8090, frontends 5173/5174, Keycloak 8080, the UIs (Vault,
+  Consul, Kibana, Jaeger) and Elasticsearch 9200 until phase 3 secures it.
+- `scripts/new-service.sh`: generate compose entries without a published port.
+- **Verify:** `lsof -iTCP -sTCP:LISTEN -n -P | grep com.docker` shows only `127.0.0.1`; the
+  backoffice works end to end; `curl <LAN-IP>:6379` fails.
+
+### Phase 1 - Kafka: SASL/SCRAM + ACLs (≈2-3 h)
+
+- Broker: listeners `SASL_PLAINTEXT` with `SCRAM-SHA-512` for clients (TLS comes in phase 5),
+  controller stays internal; `authorizer.class.name=StandardAuthorizer` (KRaft),
+  `allow.everyone.if.no.acl.found=false`, a generated `kafka-admin` super user.
+- `secrets-init`: a `kafka-password` per service; the admin's in `/secrets/infra`.
+- New one-shot `kafka-init` (Kafka image, runs `kafka-configs.sh` / `kafka-acls.sh` as the
+  super user): creates each service's SCRAM user and its ACLs from `services.list`, on every start.
+- ACLs per service:
+  - every service: Write `events.audit`, `permission-catalog`, its own dead-letter topics
+    (`events.*.<svc>.dlt` - prefix ACL); Read + group on its own group id (`<svc>*`);
+  - Write on its own domain topic(s), declared in `services.list` (e.g.
+    `user-service client-secret kafka-writes=events.user`);
+  - Read on the topics it consumes, declared there too (`kafka-reads=events.user`);
+  - notification-service: Read/Describe on every topic and group plus DescribeConfigs, for the
+    event log, Events page and consumer groups (read-only, platform-wide).
+- Vault seed: `smartconnect.kafka.password` per service. Consul `application.yml`:
+  `spring.kafka.security.protocol`, `sasl.mechanism`, `sasl.jaas.config` built from
+  `${spring.application.name}` and `${smartconnect.kafka.password}`. commons' own factories and
+  `KafkaBrowser`/admin clients build from `KafkaProperties`, so they pick it up. Check each one.
+- Healthcheck uses the admin credentials.
+- **Verify:** a client with no or wrong credentials is refused; demo-service writing to
+  `events.user` is denied (`TopicAuthorizationException`); create a user → Live activity shows it
+  → the users table updates; Events page lists topics and groups; `mvn verify` green.
+
+### Phase 2 - Redis: password + ACL user (≈45 min)
+
+- Redis 7 ACL file generated by `secrets-init`: `default` off, user `api-gateway` with only the
+  commands and key patterns the rate limiter uses (`~request_rate_limiter.*`, `+@scripting
+  +@read +@write`); a separate admin for the healthcheck.
+- Gateway: `spring.data.redis.username/password` from Vault.
+- **Verify:** `redis-cli PING` without auth → `NOAUTH`; rate limiting still answers 429 under load;
+  gateway `RedisConnectivityVerifier` still fails fast when Redis is down.
+
+### Phase 3 - Elasticsearch + Kibana security (≈2 h)
+
+- `xpack.security.enabled: true`; generated `elastic` password (people use it for Kibana,
+  printed by `show-secret.sh elastic-password`).
+- New one-shot `elastic-init`: sets the `kibana_system` password; creates roles and users or API keys:
+  - `filebeat` - create_doc and template management on `smartconnect-logs-*`;
+  - `metrics-<svc>` per service - write `smartconnect-metrics-*` (Micrometer's elastic
+    exporter takes user/password or an API key);
+  - `api-gateway` - read-only on `smartconnect-logs-*` and `smartconnect-metrics-*` (Traffic,
+    request traces).
+- Kibana and `kibana-init` authenticate; the Filebeat config takes credentials from env.
+- **Verify:** anonymous `curl :9200` → 401; logs and metrics keep flowing (Kibana dashboard,
+  backoffice Traffic and request trace work); the gateway can't write or delete indices.
+
+### Phase 4 - Keycloak admin and seed user (≈1 h)
+
+- `secrets-init`: `keycloak-admin-password`, `seed-admin-password`.
+- Keycloak 26: `KC_BOOTSTRAP_ADMIN_USERNAME/PASSWORD` from the file (only applies to an empty DB),
+  **and** `keycloak-init` sets the master admin's password on every run, since the existing DB
+  already holds `admin/admin`.
+- `keycloak-init` sets `admin.seed`'s password from the generated file; remove the plain value
+  from `realm-export.json` and the README (point to `show-secret.sh seed-admin-password`).
+- `UserServiceKeycloakIT` keeps its own values.
+- **Verify:** `admin/admin` no longer signs in; the generated passwords do; backoffice sign-in works.
+
+### Phase 5 - TLS (≈3-4 h, can be split)
+
+- `secrets-init` creates a local CA (openssl in alpine) and a cert per service (SAN = compose
+  name + localhost), trusted by every service via a mounted truststore.
+- 5a edge: gateway and Keycloak on HTTPS, frontends use `https://localhost`.
+- 5b internal: Kafka `SASL_SSL`, Elasticsearch HTTPS, Vault listener TLS, Redis TLS, Consul
+  registrations with `https` and `lb:https` routes, service-to-service HTTPS.
+- **Verify:** no plaintext listener left (`nmap`/`openssl s_client` per port); everything works.
+
+## Decisions for tomorrow
+
+1. **Kafka write permissions** - explicit `kafka-writes=`/`kafka-reads=` per service in
+   `services.list` (recommended: real least privilege, one line per service), or a prefix rule
+   like "any service may write `events.*`" (simpler, weaker)?
+2. **Host ports** - remove internal service ports entirely (recommended), or keep them on
+   `127.0.0.1` for debugging?
+3. **TLS** - a self-signed local CA is enough locally (recommended); do phase 5 now or after
+   the first four?
+
+## Risks and notes
+
+- Enabling auth on Kafka, Redis and Elasticsearch works on the existing volumes; no data loss
+  expected. A **clean-slate check** (removing the `secrets`, `vault-data` and other volumes)
+  is destructive and needs an explicit go-ahead first. It was blocked on 2026-10-14.
+- Each phase touches compose, Consul config, Vault seed and `secrets-init` together; keep
+  `scripts/new-service.sh` in step so new services get credentials automatically.
+- Watch the healthchecks: each must authenticate, or the stack won't start.
+- Known small items to fold in along the way: top-bar overflow at phone width; demo-service
+  has no Micrometer elastic exporter (missing from Traffic).
