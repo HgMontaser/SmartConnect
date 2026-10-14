@@ -80,6 +80,17 @@
       <artifactId>context-propagation</artifactId>
     </dependency>
 
+    <!-- Production-grade cache for Spring Cloud LoadBalancer's service-instance lists (every
+         service that discovers others via Consul); TTL is set in ServiceDiscoveryDefaults. -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context-support</artifactId>
+    </dependency>
+
     <!-- Service-to-service calls (ServiceClients) - optional: only services making such calls
          pull in spring-cloud-commons (via the Consul starters) and the OAuth2 client. -->
     <dependency>
