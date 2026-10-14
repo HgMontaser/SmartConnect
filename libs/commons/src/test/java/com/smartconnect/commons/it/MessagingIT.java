@@ -12,13 +12,20 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.actuate.autoconfigure.observation.ObservationAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.tracing.MicrometerTracingAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
@@ -36,8 +43,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * The event contract against a real broker: publish/consume, retries then dead-letter for a
- * throwing listener, and straight-to-dead-letter for an undecodable record.
+ * The event contract against a real broker: publish/consume, the trace carrying over from
+ * publisher to listener, retries then dead-letter for a throwing listener, and
+ * straight-to-dead-letter for an undecodable record.
  */
 @Testcontainers
 class MessagingIT {
@@ -52,9 +60,14 @@ class MessagingIT {
 
     private ApplicationContextRunner runner() {
         return new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(KafkaAutoConfiguration.class, MessagingAutoConfiguration.class))
+                .withConfiguration(AutoConfigurations.of(KafkaAutoConfiguration.class, MessagingAutoConfiguration.class,
+                        // The services' tracing setup (minus the OTLP exporter).
+                        ObservationAutoConfiguration.class, MicrometerTracingAutoConfiguration.class,
+                        OpenTelemetryAutoConfiguration.class,
+                        org.springframework.boot.actuate.autoconfigure.tracing.OpenTelemetryAutoConfiguration.class))
                 .withUserConfiguration(Listener.class)
                 .withPropertyValues(
+                        "management.tracing.sampling.probability=1.0",
                         "spring.kafka.bootstrap-servers=" + KAFKA.getBootstrapServers(),
                         "spring.application.name=it-consumer-" + UUID.randomUUID().toString().substring(0, 8),
                         "it.topic=" + topic);
@@ -72,6 +85,25 @@ class MessagingIT {
             assertThat(event.source()).startsWith("it-consumer-");
             assertThat(event.id()).isNotNull();
             assertThat(event.payloadAs(Map.class)).containsEntry("text", "hello");
+        });
+    }
+
+    @Test
+    void theListenerContinuesThePublishersTrace() {
+        runner().run(context -> {
+            Listener listener = context.getBean(Listener.class);
+            Tracer tracer = context.getBean(Tracer.class);
+            Span request = tracer.nextSpan().name("request").start();
+            try (Tracer.SpanInScope ignored = tracer.withSpan(request)) {
+                context.getBean(EventPublisher.class).publish(type, "k3", Map.of("text", "traced")).get();
+            } finally {
+                request.end();
+            }
+
+            await().atMost(Duration.ofSeconds(30)).until(() -> !listener.received.isEmpty());
+            String traceId = request.context().traceId();
+            assertThat(listener.traceparents.get(0)).contains(traceId);
+            assertThat(listener.traceIds.get(0)).isEqualTo(traceId);
         });
     }
 
@@ -139,13 +171,24 @@ class MessagingIT {
     static class Listener {
         final List<EventEnvelope> received = new CopyOnWriteArrayList<>();
         final List<EventEnvelope> failures = new CopyOnWriteArrayList<>();
+        /** The record's W3C trace header and the trace the listener ran in, per received event. */
+        final List<String> traceparents = new CopyOnWriteArrayList<>();
+        final List<String> traceIds = new CopyOnWriteArrayList<>();
+        private final ObjectProvider<Tracer> tracer;
+
+        Listener(ObjectProvider<Tracer> tracer) {
+            this.tracer = tracer;
+        }
 
         @KafkaListener(topics = "${it.topic}", containerFactory = EventListeners.FACTORY)
-        void on(EventEnvelope event) {
+        void on(EventEnvelope event, @Header(name = "traceparent", required = false) String traceparent) {
             if (event.payloadAs(Map.class).get("text").toString().contains("fail")) {
                 failures.add(event);
                 throw new IllegalStateException("boom");
             }
+            Span current = tracer.getObject().currentSpan();
+            traceparents.add(String.valueOf(traceparent));
+            traceIds.add(current == null ? "none" : current.context().traceId());
             received.add(event);
         }
     }

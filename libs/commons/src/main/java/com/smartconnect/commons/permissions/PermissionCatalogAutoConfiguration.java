@@ -1,6 +1,7 @@
 package com.smartconnect.commons.permissions;
 
 import com.smartconnect.commons.events.PermissionCatalogEvent;
+import com.smartconnect.commons.kafka.ObservedKafkaTemplates;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -51,8 +52,7 @@ public class PermissionCatalogAutoConfiguration {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
         KafkaTemplate<String, PermissionCatalogEvent> template =
-                new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config));
-        template.setObservationEnabled(true);
+                ObservedKafkaTemplates.observed(new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config)), context);
 
         return new PermissionCatalogPublisher(properties.getService(), provider, template,
                 new DeclaredPermissionsVerifier(context), properties.isVerify());

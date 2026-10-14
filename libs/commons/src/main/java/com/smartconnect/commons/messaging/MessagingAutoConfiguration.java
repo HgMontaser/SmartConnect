@@ -1,6 +1,7 @@
 package com.smartconnect.commons.messaging;
 
 import com.smartconnect.commons.kafka.CorrelationIdRecordInterceptor;
+import com.smartconnect.commons.kafka.ObservedKafkaTemplates;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -45,8 +47,9 @@ public class MessagingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public EventPublisher eventPublisher(KafkaProperties kafka, @Value("${spring.application.name}") String service) {
-        return new EventPublisher(envelopeTemplate(kafka), service);
+    public EventPublisher eventPublisher(KafkaProperties kafka, @Value("${spring.application.name}") String service,
+                                         ApplicationContext context) {
+        return new EventPublisher(envelopeTemplate(kafka, context), service);
     }
 
     @Bean(EventListeners.FACTORY)
@@ -54,7 +57,7 @@ public class MessagingAutoConfiguration {
     @SuppressWarnings("unchecked")
     public ConcurrentKafkaListenerContainerFactory<String, EventEnvelope> smartconnectEventListenerFactory(
             KafkaProperties kafka, @Value("${spring.application.name}") String service,
-            ObjectProvider<CorrelationIdRecordInterceptor> correlation) {
+            ObjectProvider<CorrelationIdRecordInterceptor> correlation, ApplicationContext context) {
         Map<String, Object> config = kafka.buildConsumerProperties(null);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, service);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -65,18 +68,18 @@ public class MessagingAutoConfiguration {
         ConcurrentKafkaListenerContainerFactory<String, EventEnvelope> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumers);
         factory.getContainerProperties().setObservationEnabled(true);
-        factory.setCommonErrorHandler(errorHandler(kafka, service));
+        factory.setCommonErrorHandler(errorHandler(kafka, service, context));
         correlation.ifAvailable(interceptor ->
                 factory.setRecordInterceptor((RecordInterceptor<String, EventEnvelope>) (RecordInterceptor<?, ?>) interceptor));
         return factory;
     }
 
     /** Retries with backoff (0.5s, 1s, 2s), then parks the record on this service's dead-letter topic. */
-    private DefaultErrorHandler errorHandler(KafkaProperties kafka, String service) {
+    private DefaultErrorHandler errorHandler(KafkaProperties kafka, String service, ApplicationContext context) {
         // Undecodable records arrive as raw bytes, decoded ones as envelopes - one template each.
         Map<Class<?>, KafkaOperations<?, ?>> templates = new LinkedHashMap<>();
-        templates.put(byte[].class, bytesTemplate(kafka));
-        templates.put(EventEnvelope.class, envelopeTemplate(kafka));
+        templates.put(byte[].class, bytesTemplate(kafka, context));
+        templates.put(EventEnvelope.class, envelopeTemplate(kafka, context));
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(templates,
                 (record, ex) -> new TopicPartition(EventTopics.deadLetter(record.topic(), service), -1));
 
@@ -86,20 +89,19 @@ public class MessagingAutoConfiguration {
         return new DefaultErrorHandler(recoverer, backOff);
     }
 
-    private static KafkaTemplate<String, EventEnvelope> envelopeTemplate(KafkaProperties kafka) {
+    /** Observed, so the trace context goes out in the record headers (see {@link ObservedKafkaTemplates}). */
+    private static KafkaTemplate<String, EventEnvelope> envelopeTemplate(KafkaProperties kafka, ApplicationContext context) {
         Map<String, Object> config = kafka.buildProducerProperties(null);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
-        KafkaTemplate<String, EventEnvelope> template = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config));
-        template.setObservationEnabled(true);
-        return template;
+        return ObservedKafkaTemplates.observed(new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config)), context);
     }
 
-    private static KafkaTemplate<String, byte[]> bytesTemplate(KafkaProperties kafka) {
+    private static KafkaTemplate<String, byte[]> bytesTemplate(KafkaProperties kafka, ApplicationContext context) {
         Map<String, Object> config = kafka.buildProducerProperties(null);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
-        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config));
+        return ObservedKafkaTemplates.observed(new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config)), context);
     }
 }

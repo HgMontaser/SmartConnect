@@ -30,6 +30,8 @@ public class EventLogConsumerConfig {
         config.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, 10_000);
         ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), new StringDeserializer()));
+        // Custom factory, so spring.kafka.listener.observation-enabled doesn't reach it: the event log's span joins the request's trace.
+        factory.getContainerProperties().setObservationEnabled(true);
         return factory;
     }
 }

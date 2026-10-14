@@ -109,6 +109,9 @@ Services talk asynchronously through Kafka using one envelope (`EventEnvelope`, 
   `events.<domain>.<service>.dlt` with the error in its headers - one bad message never blocks
   the rest. Undecodable messages go straight there.
 - Make consumers idempotent with `event.id()`; bump `version` on breaking payload changes.
+- A service that builds its own listener factory or `KafkaTemplate` must turn tracing on itself
+  (`setObservationEnabled(true)`; for a template that isn't a bean, `ObservedKafkaTemplates`):
+  `spring.kafka.*.observation-enabled` only reaches Boot's own ones.
 - The platform uses it too: user-service publishes `user.created/updated/deleted` on
   `events.user`, which notification-service pushes to the backoffice over WebSocket.
 - Topics are auto-created by the broker locally; create them explicitly (partitions,
