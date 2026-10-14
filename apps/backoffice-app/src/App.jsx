@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import keycloak from './keycloak.js';
-import BackofficeShell from './components/BackofficeShell.jsx';
-import NotSignedIn from './components/NotSignedIn.jsx';
+import { PageSpinner } from './components/Spinner.jsx';
+
+// Each screen is its own chunk: a signed-out visitor never downloads the backoffice shell.
+const BackofficeShell = lazy(() => import('./components/BackofficeShell.jsx'));
+const NotSignedIn = lazy(() => import('./components/NotSignedIn.jsx'));
 
 export default function App() {
   // 'checking' | 'authenticated' | 'unauthenticated' | 'error'
@@ -54,16 +57,15 @@ export default function App() {
   }, []);
 
   if (status === 'checking') {
-    return (
-      <div className="centered-state">
-        <div className="dot-spinner" />
-        <p className="centered-state-text">Checking your session…</p>
-      </div>
-    );
+    return <PageSpinner label="Checking your session…" />;
   }
 
   if (status === 'unauthenticated') {
-    return <NotSignedIn onSignIn={() => keycloak.login()} />;
+    return (
+      <Suspense fallback={<PageSpinner />}>
+        <NotSignedIn onSignIn={() => keycloak.login()} />
+      </Suspense>
+    );
   }
 
   if (status === 'error') {
@@ -78,5 +80,9 @@ export default function App() {
     );
   }
 
-  return <BackofficeShell keycloak={keycloak} />;
+  return (
+    <Suspense fallback={<PageSpinner label="Loading backoffice…" />}>
+      <BackofficeShell keycloak={keycloak} />
+    </Suspense>
+  );
 }

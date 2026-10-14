@@ -1,0 +1,13 @@
+# Build context for services/Dockerfile is the repo root - keep it to sources only.
+**/target
+**/node_modules
+**/dist
+.git
+.github
+.idea
+.claude
+apps
+k8s
+infra
+*.md
+github-recovery-codes.txt

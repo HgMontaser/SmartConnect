@@ -27,7 +27,7 @@ spring:
         - id: user-service
           uri: ${USER_SERVICE_URI:http://user-service:8081}
           predicates:
-            - Path=/api/users/**
+            - Path=/api/users/**,/api/roles/**,/api/permissions/**
           filters:
             - name: RequestRateLimiter
               args:
@@ -35,8 +35,7 @@ spring:
                 redis-rate-limiter.burstCapacity: 20
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userOrIpKeyResolver}"
-        # Websocket bridge for live user-events -> backoffice-app. Nothing lives behind this
-        # route yet (backoffice-app is phase 2) but the shape is wired now per the build order.
+        # Websocket bridge for live user-events -> backoffice-app.
         - id: ws-bridge
           uri: ${NOTIFICATION_SERVICE_WS_URI:ws://notification-service:8082}
           predicates:

@@ -126,5 +126,7 @@ export default function useUsers({ keycloak, authenticated }) {
     [getToken]
   );
 
-  return { users, loading, error, setError, refetch: load, applyUserEvent, create, update, remove };
+  const resetPassword = useCallback((id, payload) => api.resetUserPassword(id, payload, getToken()), [getToken]);
+
+  return { users, loading, error, setError, refetch: load, applyUserEvent, create, update, remove, resetPassword };
 }

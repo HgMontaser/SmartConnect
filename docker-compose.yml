@@ -3,7 +3,6 @@ networks:
     driver: bridge
 
 volumes:
-  vault-data:
   keycloak-postgres-data:
   kafka-data:
   redis-data:
@@ -26,30 +25,19 @@ services:
       VAULT_ADDR: "http://127.0.0.1:8200"
     cap_add:
       - IPC_LOCK
+    # Dev mode is in-memory: the entrypoint re-seeds on every start (see infra/vault/entrypoint.sh)
+    # and the healthcheck only passes once seeding is done.
+    entrypoint: ["sh", "/entrypoint.sh"]
     volumes:
-      - vault-data:/vault/data
+      - ./infra/vault/entrypoint.sh:/entrypoint.sh:ro
+      - ./infra/vault/seed.sh:/seed.sh:ro
     networks:
       - smartconnect
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:8200/v1/sys/health?standbyok=true"]
+      test: ["CMD-SHELL", "test -f /tmp/seeded && wget -q -O- 'http://127.0.0.1:8200/v1/sys/health?standbyok=true'"]
       interval: 5s
       timeout: 3s
       retries: 20
-
-  vault-seed:
-    image: hashicorp/vault:1.17
-    container_name: smartconnect-vault-seed
-    depends_on:
-      vault:
-        condition: service_healthy
-    environment:
-      VAULT_ADDR: "http://vault:8200"
-      VAULT_TOKEN: "smartconnect-root-token"
-    volumes:
-      - ./infra/vault/seed.sh:/seed.sh:ro
-    entrypoint: ["sh", "/seed.sh"]
-    networks:
-      - smartconnect
 
   # ---------------------------------------------------------------------
   # Identity
@@ -207,7 +195,10 @@ services:
   # ---------------------------------------------------------------------
   api-gateway:
     build:
-      context: ./services/api-gateway
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE: api-gateway
     container_name: smartconnect-api-gateway
     restart: unless-stopped
     ports:
@@ -221,8 +212,8 @@ services:
       USER_SERVICE_URI: http://user-service:8081
       NOTIFICATION_SERVICE_WS_URI: ws://notification-service:8082
     depends_on:
-      vault-seed:
-        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       redis:
@@ -235,7 +226,10 @@ services:
   # ---------------------------------------------------------------------
   user-service:
     build:
-      context: ./services/user-service
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE: user-service
     container_name: smartconnect-user-service
     restart: unless-stopped
     ports:
@@ -246,8 +240,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
-      vault-seed:
-        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       kafka:
@@ -260,7 +254,10 @@ services:
   # ---------------------------------------------------------------------
   notification-service:
     build:
-      context: ./services/notification-service
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE: notification-service
     container_name: smartconnect-notification-service
     restart: unless-stopped
     ports:
@@ -271,8 +268,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
-      vault-seed:
-        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       kafka:
@@ -295,5 +292,30 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+    networks:
+      - smartconnect
+
+  # ---------------------------------------------------------------------
+  # Frontends
+  # ---------------------------------------------------------------------
+  login-app:
+    build:
+      context: ./apps/login-app
+    container_name: smartconnect-login-app
+    restart: unless-stopped
+    ports:
+      - "5173:8080"
+    networks:
+      - smartconnect
+
+  backoffice-app:
+    build:
+      context: ./apps/backoffice-app
+    container_name: smartconnect-backoffice-app
+    restart: unless-stopped
+    ports:
+      - "5174:8080"
+    depends_on:
+      - api-gateway
     networks:
       - smartconnect

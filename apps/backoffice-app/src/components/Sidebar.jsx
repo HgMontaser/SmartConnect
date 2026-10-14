@@ -1,24 +1,26 @@
-const NAV_ITEMS = [
-  { label: 'Users', active: true },
-  { label: 'Roles & permissions' },
-  { label: 'Sessions' },
-  { label: 'Event log' },
-  { label: 'Gateway health' },
-  { label: 'Settings' },
-];
+const COMING_SOON = ['Sessions', 'Event log', 'Gateway health', 'Settings'];
 
-export default function Sidebar() {
+export default function Sidebar({ items, active, onNavigate }) {
   return (
     <nav className="sidebar">
-      {NAV_ITEMS.map((item) => (
+      <span className="nav-section">Access</span>
+      {items.map((item) => (
         <button
-          key={item.label}
+          key={item.id}
           type="button"
-          className={`nav-item ${item.active ? 'nav-item--active' : ''}`}
-          disabled={!item.active}
-          title={item.active ? undefined : 'Coming soon'}
+          className={`nav-item ${active === item.id ? 'nav-item--active' : ''}`}
+          onClick={() => onNavigate(item.id)}
         >
-          {item.label}
+          <item.icon />
+          <span>{item.label}</span>
+          {item.count !== undefined && <span className="nav-count">{item.count}</span>}
+        </button>
+      ))}
+
+      <span className="nav-section">Coming soon</span>
+      {COMING_SOON.map((label) => (
+        <button key={label} type="button" className="nav-item nav-item--soon" disabled>
+          <span>{label}</span>
         </button>
       ))}
     </nav>

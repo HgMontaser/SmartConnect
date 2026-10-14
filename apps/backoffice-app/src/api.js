@@ -1,4 +1,4 @@
-// Thin fetch wrapper around api-gateway's /api/users endpoints.
+// Thin fetch wrapper around api-gateway endpoints (/api/users, /api/roles, /api/permissions).
 // backoffice-app NEVER talks to user-service directly — only this gateway base URL.
 const GATEWAY_HTTP_URL = import.meta.env.VITE_GATEWAY_HTTP_URL || 'http://localhost:8090';
 
@@ -67,4 +67,44 @@ export function updateUser(id, payload, token) {
 
 export function deleteUser(id, token) {
   return request(`/api/users/${id}`, { method: 'DELETE', token });
+}
+
+export function resetUserPassword(id, payload, token) {
+  return request(`/api/users/${id}/reset-password`, { method: 'POST', token, body: payload });
+}
+
+export function listRoles(token) {
+  return request('/api/roles', { token });
+}
+
+export function listRoleMembers(name, token) {
+  return request(`/api/roles/${encodeURIComponent(name)}/users`, { token });
+}
+
+export function createRole(payload, token) {
+  return request('/api/roles', { method: 'POST', token, body: payload });
+}
+
+export function updateRole(name, payload, token) {
+  return request(`/api/roles/${encodeURIComponent(name)}`, { method: 'PUT', token, body: payload });
+}
+
+export function deleteRole(name, token) {
+  return request(`/api/roles/${encodeURIComponent(name)}`, { method: 'DELETE', token });
+}
+
+export function listPermissions(token) {
+  return request('/api/permissions', { token });
+}
+
+export function createPermission(payload, token) {
+  return request('/api/permissions', { method: 'POST', token, body: payload });
+}
+
+export function updatePermission(name, payload, token) {
+  return request(`/api/permissions/${encodeURIComponent(name)}`, { method: 'PUT', token, body: payload });
+}
+
+export function deletePermission(name, token) {
+  return request(`/api/permissions/${encodeURIComponent(name)}`, { method: 'DELETE', token });
 }

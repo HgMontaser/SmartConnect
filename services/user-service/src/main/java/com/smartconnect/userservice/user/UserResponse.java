@@ -9,6 +9,7 @@ public record UserResponse(
         String firstName,
         String lastName,
         boolean enabled,
-        List<String> realmRoles
+        List<String> realmRoles,
+        Long createdAt
 ) {
 }
