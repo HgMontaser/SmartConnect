@@ -7,3 +7,4 @@ com.smartconnect.commons.observability.ObservabilityAutoConfiguration
 com.smartconnect.commons.kafka.KafkaObservabilityAutoConfiguration
 com.smartconnect.commons.permissions.PermissionCatalogAutoConfiguration
 com.smartconnect.commons.client.ServiceClientsAutoConfiguration
+com.smartconnect.commons.messaging.MessagingAutoConfiguration

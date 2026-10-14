@@ -3,6 +3,7 @@ package com.smartconnect.demoservice;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.smartconnect.commons.messaging.EventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,12 +16,20 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/** Mock business data (in memory) to exercise read vs write permissions. */
+/**
+ * Mock business data (in memory) to exercise read vs write permissions. Each new note is also
+ * published as a standard {@code demo.note-created} event (see ActivityListener).
+ */
 @RestController
 @RequestMapping("/api/demo/notes")
 public class NotesController {
 
     private final List<Note> notes = new CopyOnWriteArrayList<>();
+    private final EventPublisher events;
+
+    public NotesController(EventPublisher events) {
+        this.events = events;
+    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('demo:read')")
@@ -33,6 +42,7 @@ public class NotesController {
     public ResponseEntity<Note> create(@Valid @RequestBody NoteRequest request, @AuthenticationPrincipal Jwt caller) {
         Note note = new Note(UUID.randomUUID(), request.text(), caller.getClaimAsString("preferred_username"), Instant.now());
         notes.add(0, note);
+        events.publish("demo.note-created", note.id().toString(), note);
         return ResponseEntity.status(HttpStatus.CREATED).body(note);
     }
 

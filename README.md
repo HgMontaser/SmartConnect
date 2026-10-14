@@ -46,6 +46,24 @@ Rebuild a single piece after a change, e.g. `docker compose up -d --build user-s
 - Fleet-wide Consul defaults live in commons (`ServiceDiscoveryDefaults`), so a service only
   needs the two Consul starters and `spring.config.import: "vault://,consul:"`.
 
+## Events
+
+Services talk asynchronously through Kafka using one envelope (`EventEnvelope`, in commons):
+`id`, `type`, `version`, `source`, `occurredAt`, `correlationId`, and the business `payload`.
+
+- **Types** are `<domain>.<event>` (e.g. `user.updated`). All events of a domain share the topic
+  `events.<domain>`, keyed by entity id so one entity's events stay in order.
+- **Consumers** use the `EventListeners.FACTORY` listener factory: each service is its own
+  consumer group (it sees every event once), traces and correlation ids carry over, and a
+  listener that throws is retried 3 times (0.5s, 1s, 2s) and then the record is parked on
+  `events.<domain>.<service>.dlt` with the error in its headers - one bad message never blocks
+  the rest. Undecodable messages go straight there.
+- Make consumers idempotent with `event.id()`; bump `version` on breaking payload changes.
+- The platform uses it too: user-service publishes `user.created/updated/deleted` on
+  `events.user`, which notification-service pushes to the backoffice over WebSocket.
+- Topics are auto-created by the broker locally; create them explicitly (partitions,
+  retention) in production.
+
 ## Tracing
 
 Every service sends OpenTelemetry spans to Jaeger (http://localhost:16686). One request is one
@@ -116,6 +134,7 @@ Plug-in points a service uses, all declared in its own repo folder:
 | Permissions | `smartconnect.permissions.catalog`, or a `PermissionCatalogProvider` bean reading its own DB (call `PermissionCatalogPublisher.publish()` after changes) |
 | Call another service | inject `ServiceClients`: `asCaller()` forwards the user's token, `asService()` uses the service's own token. URLs use Consul names: `http://user-service/api/users` |
 | Keycloak client (frontend, service account) | a client JSON in `infra/keycloak/clients/` (or `examples/<app>/keycloak/`); optional `<clientId>.permissions` grants permissions to its service account. Applied by `keycloak-init` on every `docker compose up` |
+| Publish / consume events | inject `EventPublisher`: `events.publish("billing.invoice-paid", id, payload)`; consume with `@KafkaListener(topics = "events.billing", containerFactory = EventListeners.FACTORY)` taking an `EventEnvelope` (see Events below) |
 | Secrets | `infra/vault/seed.sh` under `secret/smartconnect/<service>` (then `docker compose restart vault`) |
 | Non-secret config | `infra/consul/config/<service>.yml` |
 

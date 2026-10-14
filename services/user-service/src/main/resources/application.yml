@@ -26,14 +26,10 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:19092}
     producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         # CorrelationIdProducerInterceptor stamps X-Correlation-Id from MDC onto every record.
+        # Serializers are set by commons (EventPublisher, permission catalog).
         interceptor.classes: com.smartconnect.commons.kafka.CorrelationIdProducerInterceptor
-        # Consumer (notification-service) sets its own value.default.type explicitly rather
-        # than trusting a Java class name shipped in the record header.
-        spring.json.add.type.headers: false
 
 management:
   endpoints:

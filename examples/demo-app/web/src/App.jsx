@@ -81,6 +81,7 @@ function Demo() {
           </section>
           <Connectivity />
           <Notes canWrite={can('demo:write')} />
+          <Events />
         </>
       )}
     </div>
@@ -174,6 +175,61 @@ function Notes({ canWrite }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function Events() {
+  const [activity, setActivity] = useState(null);
+
+  useEffect(() => {
+    let stop = false;
+    const poll = () =>
+      call(keycloak, '/api/demo/activity')
+        .then((data) => !stop && setActivity(data))
+        .catch(() => {});
+    poll();
+    const timer = setInterval(poll, 2000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  return (
+    <section className="card">
+      <h2>Events</h2>
+      <p className="muted">
+        Each note is published as a <span className="mono">demo.note-created</span> event and consumed back. A note containing
+        “fail” makes the consumer throw: 3 retries, then it’s parked on the dead-letter topic.
+      </p>
+      {activity && (
+        <>
+          <p className="muted mono">handler attempts: {activity.handlerAttempts}</p>
+          <ul className="notes">
+            {activity.processed.length === 0 && <li className="muted">No events consumed yet.</li>}
+            {activity.processed.map((a) => (
+              <li key={a.eventId}>
+                <span>{a.summary}</span>
+                <span className="mono muted">{a.type}</span>
+              </li>
+            ))}
+          </ul>
+          {activity.deadLetters.length > 0 && (
+            <>
+              <h2 className="dlt-heading">Dead letters</h2>
+              <ul className="notes">
+                {activity.deadLetters.map((d) => (
+                  <li key={`${d.key}-${d.parkedAt}`}>
+                    <span className="error">{d.error}</span>
+                    <span className="mono muted">{d.originalTopic}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
     </section>
   );
 }
