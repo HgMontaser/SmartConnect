@@ -40,6 +40,29 @@ services:
       retries: 20
 
   # ---------------------------------------------------------------------
+  # Service discovery + shared config
+  # ---------------------------------------------------------------------
+  consul:
+    image: hashicorp/consul:1.19
+    container_name: smartconnect-consul
+    restart: unless-stopped
+    ports:
+      - "8500:8500"
+    # Dev mode is in-memory: the entrypoint loads infra/consul/config into KV on every start
+    # (see infra/consul/entrypoint.sh) and the healthcheck only passes once that's done.
+    entrypoint: ["sh", "/entrypoint.sh"]
+    volumes:
+      - ./infra/consul/entrypoint.sh:/entrypoint.sh:ro
+      - ./infra/consul/config:/consul-config:ro
+    networks:
+      - smartconnect
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/seeded && consul members"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---------------------------------------------------------------------
   # Identity
   # ---------------------------------------------------------------------
   keycloak-postgres:
@@ -206,13 +229,14 @@ services:
     environment:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
+      CONSUL_HOST: consul
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       ELASTICSEARCH_HOST: http://elasticsearch:9200
-      USER_SERVICE_URI: http://user-service:8081
-      NOTIFICATION_SERVICE_WS_URI: ws://notification-service:8082
     depends_on:
       vault:
+        condition: service_healthy
+      consul:
         condition: service_healthy
       keycloak:
         condition: service_healthy
@@ -237,10 +261,13 @@ services:
     environment:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
+      CONSUL_HOST: consul
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
       vault:
+        condition: service_healthy
+      consul:
         condition: service_healthy
       keycloak:
         condition: service_healthy
@@ -265,10 +292,13 @@ services:
     environment:
       VAULT_URI: http://vault:8200
       VAULT_TOKEN: smartconnect-root-token
+      CONSUL_HOST: consul
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
       vault:
+        condition: service_healthy
+      consul:
         condition: service_healthy
       keycloak:
         condition: service_healthy

@@ -49,6 +49,16 @@
       <artifactId>spring-cloud-starter-vault-config</artifactId>
     </dependency>
 
+    <!-- Registers with Consul (discovery + gateway routes) and loads shared config from Consul KV -->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-consul-discovery</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-consul-config</artifactId>
+    </dependency>
+
     <!-- Publishes UserEvent to the user-events topic -->
     <dependency>
       <groupId>org.springframework.kafka</groupId>

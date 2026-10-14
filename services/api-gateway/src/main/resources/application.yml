@@ -5,10 +5,11 @@ spring:
   application:
     name: api-gateway
 
-  # Fail fast if Vault isn't reachable at boot: spring.config.import is mandatory (no
-  # "optional:" prefix), so a dead Vault aborts startup instead of degrading silently.
+  # Secrets from Vault, shared non-secret config from Consul KV (config/application/data and
+  # config/api-gateway/data, seeded from infra/consul/config). Both mandatory (no "optional:"
+  # prefix), so a dead Vault or Consul aborts startup instead of degrading silently.
   config:
-    import: "vault://"
+    import: "vault://,consul:"
 
   cloud:
     vault:
@@ -22,31 +23,8 @@ spring:
         # secret/data/smartconnect/api-gateway - matches infra/vault/seed.sh
         application-name: smartconnect/api-gateway
 
-    gateway:
-      routes:
-        - id: user-service
-          uri: ${USER_SERVICE_URI:http://user-service:8081}
-          predicates:
-            - Path=/api/users/**,/api/roles/**,/api/permissions/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@userOrIpKeyResolver}"
-        # Websocket bridge for live user-events -> backoffice-app.
-        - id: ws-bridge
-          uri: ${NOTIFICATION_SERVICE_WS_URI:ws://notification-service:8082}
-          predicates:
-            - Path=/ws/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@userOrIpKeyResolver}"
+    # No static routes: every route comes from a service registered in Consul with
+    # smartconnect.gateway.routes (see DiscoveredRoutesLocator).
 
   data:
     redis:
@@ -69,9 +47,6 @@ management:
         host: ${ELASTICSEARCH_HOST:http://elasticsearch:9200}
         index: smartconnect-metrics
         step: 30s
-
-smartconnect:
-  environment: ${SMARTCONNECT_ENV:local}
 
 logging:
   pattern:

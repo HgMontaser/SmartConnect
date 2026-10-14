@@ -5,9 +5,11 @@ spring:
   application:
     name: user-service
 
-  # Fail fast if Vault isn't reachable at boot: mandatory import (no "optional:" prefix).
+  # Secrets from Vault, shared non-secret config from Consul KV (config/application/data and
+  # config/<app>/data, seeded from infra/consul/config). Both mandatory: fail fast if either
+  # is unreachable at boot.
   config:
-    import: "vault://"
+    import: "vault://,consul:"
 
   cloud:
     vault:
@@ -54,9 +56,11 @@ management:
         index: smartconnect-metrics
         step: 30s
 
-smartconnect:
-  environment: ${SMARTCONNECT_ENV:local}
-
 logging:
   pattern:
     console: "%d{ISO8601} [%thread] %-5level %logger{36} [correlationId=%X{correlationId}] - %msg%n"
+
+# Routes api-gateway creates for this service, published via Consul metadata.
+smartconnect:
+  gateway:
+    routes: /api/users/**,/api/roles/**,/api/permissions/**

@@ -1,0 +1,5 @@
+# Shared, non-secret config for every service (Consul KV: config/application/data).
+# Secrets never go here - they live in Vault. Edits here apply on `docker compose restart consul`;
+# edits in the Consul UI apply live but are overwritten on the next restart.
+smartconnect:
+  environment: local

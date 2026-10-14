@@ -1,6 +1,6 @@
 # SmartConnect
 
-Secure gateway system: Keycloak identity, Vault secrets, Kafka async messaging, Redis-backed rate limiting, Elastic observability.
+Secure gateway system: Keycloak identity, Vault secrets, Consul service discovery and shared config, Kafka async messaging, Redis-backed rate limiting, Elastic observability.
 
 Everything runs locally with Docker only — no host JDK, Maven or Node needed. (The `k8s/`
 charts are parked until the project is finished; nothing deploys to the cloud.)
@@ -17,10 +17,33 @@ Reachable at:
 - api-gateway: http://localhost:8090
 - Keycloak admin console: http://localhost:8080 (admin / admin)
 - Vault UI: http://localhost:8200 (token: `smartconnect-root-token`)
+- Consul UI: http://localhost:8500 (registered services, health, KV config)
 - Kibana: http://localhost:5601
 - Elasticsearch: http://localhost:9200
 
 Rebuild a single piece after a change, e.g. `docker compose up -d --build user-service`.
+
+## Discovery, routing and config
+
+- **Consul** is the service registry. Every backend service registers itself on startup (by IP,
+  with a heartbeat carrying its actuator health) and re-registers if Consul restarts.
+- **api-gateway has no hard-coded routes.** A service asks for routes in its own config and
+  the gateway builds load-balanced routes from Consul within seconds of the service becoming
+  healthy, and drops them when it goes away:
+  ```yaml
+  smartconnect:
+    gateway:
+      routes: /api/users/**,/api/roles/**   # comma-separated path patterns
+      scheme: ws                             # only for WebSocket services (default http)
+  ```
+  A path already served by another service is refused (logged), never shared.
+- **Config:** secrets come from Vault; non-secret config comes from Consul KV, seeded from
+  `infra/consul/config/` on every Consul start — `application.yml` is shared by all services,
+  `<service-name>.yml` by that service only. Changes in the Consul UI apply live within a few
+  seconds (e.g. the gateway's rate limits); to make one permanent, edit the file and run
+  `docker compose restart consul`.
+- Fleet-wide Consul defaults live in commons (`ServiceDiscoveryDefaults`), so a service only
+  needs the two Consul starters and `spring.config.import: "vault://,consul:"`.
 
 ## Users, roles and permissions
 
@@ -63,8 +86,11 @@ A business service defines its own permissions; SmartConnect decides who gets th
    `PermissionCatalogPublisher.publish()` after every change to that table.
 3. Guard endpoints with `@PreAuthorize("hasAuthority('billing:read')")`. Startup fails if a
    checked permission isn't in the catalog (SmartConnect's system permissions are exempt).
-4. Add a gateway route, a Vault entry in `infra/vault/seed.sh` and a compose service.
-   After editing `seed.sh`, run `docker compose restart vault` so it re-seeds.
+4. Add `spring-cloud-starter-consul-discovery` + `spring-cloud-starter-consul-config`, set
+   `spring.config.import: "vault://,consul:"` and `smartconnect.gateway.routes` — the gateway
+   routes to it automatically. Then add a Vault entry in `infra/vault/seed.sh` (run
+   `docker compose restart vault` afterwards so it re-seeds) and a compose service with
+   `CONSUL_HOST: consul`.
 
 What happens: on startup (and on every `publish()`) commons sends the full catalog to the
 compacted `permission-catalog` Kafka topic. user-service syncs it into Keycloak: new
