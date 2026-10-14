@@ -5,9 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Binds {@code keycloak.admin.*} and {@code keycloak.target-realm}, seeded into Vault at
  * {@code secret/smartconnect/user-service} (see infra/vault/seed.sh). {@code admin.realm} is
- * the realm the admin-cli service account authenticates against (master); {@code
- * targetRealm} is the realm whose users this service manages (smartconnect) - these are
- * deliberately different properties because they are conceptually different realms.
+ * the realm the service account authenticates in; {@code targetRealm} is the realm whose
+ * users this service manages. Both are smartconnect today, but they stay separate properties
+ * because they are conceptually different.
  */
 @ConfigurationProperties(prefix = "keycloak")
 public class KeycloakAdminProperties {
@@ -31,8 +31,7 @@ public class KeycloakAdminProperties {
         private String serverUrl;
         private String realm;
         private String clientId;
-        private String username;
-        private String password;
+        private String clientSecret;
 
         public String getServerUrl() {
             return serverUrl;
@@ -58,20 +57,12 @@ public class KeycloakAdminProperties {
             this.clientId = clientId;
         }
 
-        public String getUsername() {
-            return username;
+        public String getClientSecret() {
+            return clientSecret;
         }
 
-        public void setUsername(String username) {
-            this.username = username;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
+        public void setClientSecret(String clientSecret) {
+            this.clientSecret = clientSecret;
         }
     }
 }

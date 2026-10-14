@@ -31,7 +31,12 @@ import java.util.List;
  * {@code smartconnect.commons.security.enabled=false}) or override any bean if a service
  * needs custom rules.
  */
-@AutoConfiguration
+// Before Boot's defaults so this chain always wins - with spring-boot-starter-oauth2-client on
+// the classpath (for service-to-service calls) Boot would otherwise add an oauth2Login chain.
+@AutoConfiguration(beforeName = {
+        "org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration",
+        "org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration",
+        "org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration"})
 @ConditionalOnClass({HttpSecurity.class, DispatcherServlet.class})
 @ConditionalOnProperty(prefix = "smartconnect.commons.security", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableWebSecurity

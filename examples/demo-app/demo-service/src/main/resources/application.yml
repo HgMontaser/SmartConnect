@@ -1,0 +1,61 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: demo-service
+
+  # Secrets from Vault (secret/smartconnect/demo-service - add to infra/vault/seed.sh only if this
+  # service has any), shared config from Consul KV (infra/consul/config). Fail fast on either.
+  config:
+    import: "vault://,consul:"
+
+  cloud:
+    vault:
+      uri: ${VAULT_URI:http://vault:8200}
+      authentication: TOKEN
+      token: ${VAULT_TOKEN:smartconnect-root-token}
+      fail-fast: true
+      kv:
+        enabled: true
+        backend: secret
+        application-name: smartconnect/demo-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:19092}
+
+  # Calls other services as itself via ServiceClients.asService(). Client registered from
+  # ../keycloak/demo-service.json; a real service keeps the secret in Vault, the example takes
+  # it from compose. The token endpoint comes from Consul's shared config.
+  security:
+    oauth2:
+      client:
+        registration:
+          smartconnect:
+            client-id: demo-service
+            client-secret: ${DEMO_SERVICE_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+
+smartconnect:
+  # Paths api-gateway routes to this service (discovered via Consul).
+  gateway:
+    routes: /api/demo/**
+  # This service's permissions, synced into SmartConnect; grant them to roles in the backoffice.
+  # Every permission used in @PreAuthorize must be listed here or startup fails.
+  permissions:
+    service: demo-service
+    catalog:
+      - name: demo:read
+        description: View demo
+      - name: demo:write
+        description: Change demo
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} [correlationId=%X{correlationId}] - %msg%n"

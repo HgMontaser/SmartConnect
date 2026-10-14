@@ -90,7 +90,7 @@ jobs:
         with:
           context: .
           file: services/Dockerfile
-          build-args: SERVICE=${{ matrix.service }}
+          build-args: MODULE=services/${{ matrix.service }}
           push: true
           tags: |
             ghcr.io/${{ env.IMAGE_OWNER }}/smartconnect-${{ matrix.service }}:${{ github.sha }}

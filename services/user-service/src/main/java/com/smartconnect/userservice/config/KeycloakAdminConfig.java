@@ -10,8 +10,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Builds the single {@link Keycloak} admin client this service uses as its "database driver" -
  * Keycloak itself is the source of truth for users, this service never persists anything of
- * its own. Authenticates as the admin-cli service account (password grant against the master
- * realm) using credentials pulled from Vault at boot; fails fast at startup if the
+ * its own. Authenticates as the {@code user-service} client's service account (client
+ * credentials, in the smartconnect realm only - never the master admin) using the secret
+ * pulled from Vault at boot; fails fast at startup if the
  * credentials or realm target are wrong (first admin call throws), matching the rest of the
  * fleet's fail-fast-on-dependency posture.
  */
@@ -25,9 +26,8 @@ public class KeycloakAdminConfig {
                 .serverUrl(properties.getAdmin().getServerUrl())
                 .realm(properties.getAdmin().getRealm())
                 .clientId(properties.getAdmin().getClientId())
-                .username(properties.getAdmin().getUsername())
-                .password(properties.getAdmin().getPassword())
-                .grantType(OAuth2Constants.PASSWORD)
+                .clientSecret(properties.getAdmin().getClientSecret())
+                .grantType(OAuth2Constants.CLIENT_CREDENTIALS)
                 .build();
     }
 }

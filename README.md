@@ -57,6 +57,9 @@ Keycloak is the only store — there's no extra database.
   `admin`, `user` and the built-in permissions are *system* entries and can't be deleted.
 - user-service syncs this catalog into Keycloak on every boot, so existing Keycloak
   databases are upgraded too.
+- user-service talks to Keycloak as its own `user-service` service account, limited to the
+  `smartconnect` realm (created by the one-shot `keycloak-init` job, `infra/keycloak/init.sh`).
+  The master admin is only used by that job.
 
 | Endpoint | Permission |
 | --- | --- |
@@ -70,27 +73,43 @@ Keycloak is the only store — there's no extra database.
 
 ## Adding a business service
 
-A business service defines its own permissions; SmartConnect decides who gets them.
+```
+scripts/new-service.sh billing-service            # platform service under services/
+scripts/new-service.sh billing-service --example my-app   # or under examples/my-app/
+docker compose up -d --build billing-service
+```
 
-1. Depend on `smartconnect-commons` and `spring-kafka`, and set the service name:
-   ```yaml
-   smartconnect:
-     permissions:
-       service: billing-service
-       catalog:                       # omit if the permissions live in your own database
-         - name: billing:read
-           description: View invoices
-   ```
-2. Keeping permissions in your own database instead? Register a `PermissionCatalogProvider`
-   bean that reads them (e.g. `SELECT name, description FROM permissions`), and call
-   `PermissionCatalogPublisher.publish()` after every change to that table.
-3. Guard endpoints with `@PreAuthorize("hasAuthority('billing:read')")`. Startup fails if a
-   checked permission isn't in the catalog (SmartConnect's system permissions are exempt).
-4. Add `spring-cloud-starter-consul-discovery` + `spring-cloud-starter-consul-config`, set
-   `spring.config.import: "vault://,consul:"` and `smartconnect.gateway.routes` — the gateway
-   routes to it automatically. Then add a Vault entry in `infra/vault/seed.sh` (run
-   `docker compose restart vault` afterwards so it re-seeds) and a compose service with
-   `CONSUL_HOST: consul`.
+The generated service is empty (one protected `GET /api/billing/status`) but already plugged in:
+Vault + Consul config, Consul registration, a gateway route for `/api/billing/**`, JWT security,
+and its own permission catalog (`billing:read`, `billing:write`). Grant those to a role in the
+backoffice and it's reachable through the gateway.
+
+Plug-in points a service uses, all declared in its own repo folder:
+
+| Need | How |
+| --- | --- |
+| Gateway route | `smartconnect.gateway.routes` (+ `scheme: ws` for WebSockets) |
+| Permissions | `smartconnect.permissions.catalog`, or a `PermissionCatalogProvider` bean reading its own DB (call `PermissionCatalogPublisher.publish()` after changes) |
+| Call another service | inject `ServiceClients`: `asCaller()` forwards the user's token, `asService()` uses the service's own token. URLs use Consul names: `http://user-service/api/users` |
+| Keycloak client (frontend, service account) | a client JSON in `infra/keycloak/clients/` (or `examples/<app>/keycloak/`); optional `<clientId>.permissions` grants permissions to its service account. Applied by `keycloak-init` on every `docker compose up` |
+| Secrets | `infra/vault/seed.sh` under `secret/smartconnect/<service>` (then `docker compose restart vault`) |
+| Non-secret config | `infra/consul/config/<service>.yml` |
+
+Startup fails if an `@PreAuthorize` check uses a permission missing from the catalog
+(SmartConnect's system permissions are exempt).
+
+### Demo app
+
+`examples/demo-app` is a mock business app built with the script, used to exercise all of the
+above: a backend (`demo-service`) and a React frontend (`demo-web`, http://localhost:5175)
+with its own Keycloak client and SSO. It never starts with the platform:
+
+```
+docker compose --profile demo-app up -d --build
+```
+
+Sign in as `admin.seed` - the Connectivity card calls user-service from demo-service with both
+token modes. Delete the folder (and its line in `docker-compose.yml` / `pom.xml`) to remove it.
 
 What happens: on startup (and on every `publish()`) commons sends the full catalog to the
 compacted `permission-catalog` Kafka topic. user-service syncs it into Keycloak: new

@@ -1,0 +1,44 @@
+# Example app "demo-app" - included from the root docker-compose.yml, started only with:
+#   docker compose --profile demo-app up -d --build
+# Paths below are relative to this file. Keycloak clients for it go in ./keycloak/.
+networks:
+  smartconnect:
+    driver: bridge
+
+services:
+  demo-service:
+    build:
+      context: ../..
+      dockerfile: services/Dockerfile
+      args:
+        MODULE: examples/demo-app/demo-service
+    container_name: smartconnect-demo-service
+    restart: unless-stopped
+    profiles: ["demo-app"]
+    environment:
+      VAULT_URI: http://vault:8200
+      VAULT_TOKEN: smartconnect-root-token
+      CONSUL_HOST: consul
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      # Example only - a real service reads its client secret from Vault.
+      DEMO_SERVICE_CLIENT_SECRET: demo-service-dev-secret
+    depends_on:
+      vault:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartconnect
+
+  demo-web:
+    build:
+      context: ./web
+    container_name: smartconnect-demo-web
+    restart: unless-stopped
+    profiles: ["demo-app"]
+    ports:
+      - "5175:8080"
+    networks:
+      - smartconnect

@@ -65,6 +65,19 @@
       <optional>true</optional>
     </dependency>
 
+    <!-- Service-to-service calls (ServiceClients) - optional: only services making such calls
+         pull in spring-cloud-commons (via the Consul starters) and the OAuth2 client. -->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-commons</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-client</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <!-- Kafka DTOs + correlation-id propagation helpers - optional, only services touching Kafka need it -->
     <dependency>
       <groupId>org.springframework.kafka</groupId>

@@ -1,0 +1,2 @@
+# Permissions granted directly to demo-service's service account (its client-credentials token).
+users:read

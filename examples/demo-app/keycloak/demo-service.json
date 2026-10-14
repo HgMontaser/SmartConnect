@@ -1,0 +1,10 @@
+{
+  "clientId": "demo-service",
+  "name": "demo-service (example) - service account",
+  "enabled": true,
+  "publicClient": false,
+  "serviceAccountsEnabled": true,
+  "standardFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "secret": "demo-service-dev-secret"
+}

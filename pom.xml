@@ -34,7 +34,22 @@
     <module>services/api-gateway</module>
     <module>services/user-service</module>
     <module>services/notification-service</module>
+    <!-- new-service:platform (scripts/new-service.sh adds platform modules above this line) -->
   </modules>
+
+  <!--
+    Example apps under examples/ build only with -Pexamples (Docker builds always pass it), so
+    the default reactor - and CI - stays platform-only.
+  -->
+  <profiles>
+    <profile>
+      <id>examples</id>
+      <modules>
+        <module>examples/demo-app/demo-service</module>
+        <!-- new-service:examples (scripts/new-service.sh adds example modules above this line) -->
+      </modules>
+    </profile>
+  </profiles>
 
   <dependencyManagement>
     <dependencies>

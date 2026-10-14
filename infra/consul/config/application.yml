@@ -3,3 +3,17 @@
 # edits in the Consul UI apply live but are overwritten on the next restart.
 smartconnect:
   environment: local
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Container-internal issuer used to fetch Keycloak's signing keys. Tokens minted for
+          # browsers (iss = http://localhost:8080/...) are accepted too - see commons security.
+          issuer-uri: http://keycloak:8080/realms/smartconnect
+      client:
+        provider:
+          # Token endpoint for services calling others as themselves (ServiceClients.asService()).
+          smartconnect:
+            token-uri: http://keycloak:8080/realms/smartconnect/protocol/openid-connect/token

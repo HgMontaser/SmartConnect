@@ -1,0 +1,11 @@
+{
+  "clientId": "demo-web",
+  "name": "demo-web (example)",
+  "enabled": true,
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "directAccessGrantsEnabled": false,
+  "redirectUris": ["http://localhost:5175/*"],
+  "webOrigins": ["http://localhost:5175"],
+  "attributes": { "pkce.code.challenge.method": "S256" }
+}

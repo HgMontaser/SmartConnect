@@ -1,25 +1,17 @@
 # syntax=docker/dockerfile:1.7
-# One image recipe for every backend service: `docker compose up --build` compiles the
-# service (plus libs/commons) inside Docker, so the host needs nothing but Docker.
-# Build context is the repo root; pick the service with --build-arg SERVICE=<name>.
+# One image recipe for every backend module: `docker compose up --build` compiles it (plus
+# libs/commons) inside Docker, so the host needs nothing but Docker. Build context is the repo
+# root (trimmed by .dockerignore); pick the module with --build-arg MODULE=<path>, e.g.
+# services/user-service or examples/demo-app/demo-service.
 
 FROM maven:3.9-eclipse-temurin-17 AS build
-ARG SERVICE
+ARG MODULE
 WORKDIR /workspace
-
-# Every module's pom is needed for the reactor to resolve, even when building just one.
-COPY pom.xml .
-COPY libs/commons/pom.xml libs/commons/
-COPY services/api-gateway/pom.xml services/api-gateway/
-COPY services/user-service/pom.xml services/user-service/
-COPY services/notification-service/pom.xml services/notification-service/
-
-COPY libs/commons/src libs/commons/src
-COPY services/${SERVICE}/src services/${SERVICE}/src
-
+COPY . .
+# -Pexamples so modules under examples/ resolve too; the default reactor stays platform-only.
 RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -q -pl services/${SERVICE} -am package -DskipTests \
- && cp services/${SERVICE}/target/${SERVICE}-*.jar /workspace/app.jar
+    mvn -B -q -Pexamples -pl ${MODULE} -am package -DskipTests \
+ && cp $(ls ${MODULE}/target/*.jar | grep -v -- '-plain.jar' | head -1) /workspace/app.jar
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

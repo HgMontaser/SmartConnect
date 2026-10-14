@@ -73,7 +73,8 @@ public class ReactiveResourceServerAutoConfiguration {
             @Value("${smartconnect.commons.security.cors.allowed-origins:http://localhost:5173,http://localhost:5174}")
             String allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        // Patterns, so dev can allow any local port (http://localhost:[*]); production lists exact origins.
+        configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

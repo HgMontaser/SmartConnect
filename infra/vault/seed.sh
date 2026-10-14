@@ -12,23 +12,17 @@ vault secrets enable -path=secret -version=2 kv 2>/dev/null || true
 echo "seeding secret/smartconnect/user-service"
 # Keys are written to match Spring property paths 1:1 so spring-cloud-vault-config binds
 # them directly with no renaming layer. keycloak.admin.* configures the Keycloak Admin REST
-# API client (admin-cli, password grant, against the master realm) that user-service uses
-# as its source of truth for users; keycloak.target-realm is the realm those users live in.
+# API client (the `user-service` service account, client-credentials grant, scoped to the
+# smartconnect realm - created by infra/keycloak/init.sh) that user-service uses as its
+# source of truth for users; keycloak.target-realm is the realm those users live in.
 vault kv put secret/smartconnect/user-service \
-  spring.security.oauth2.resourceserver.jwt.issuer-uri="http://keycloak:8080/realms/smartconnect" \
   keycloak.admin.server-url="http://keycloak:8080" \
-  keycloak.admin.realm="master" \
-  keycloak.admin.client-id="admin-cli" \
-  keycloak.admin.username="admin" \
-  keycloak.admin.password="admin" \
+  keycloak.admin.realm="smartconnect" \
+  keycloak.admin.client-id="user-service" \
+  keycloak.admin.client-secret="$USER_SERVICE_CLIENT_SECRET" \
   keycloak.target-realm="smartconnect"
 
-echo "seeding secret/smartconnect/api-gateway"
-vault kv put secret/smartconnect/api-gateway \
-  spring.security.oauth2.resourceserver.jwt.issuer-uri="http://keycloak:8080/realms/smartconnect"
-
-echo "seeding secret/smartconnect/notification-service"
-vault kv put secret/smartconnect/notification-service \
-  spring.security.oauth2.resourceserver.jwt.issuer-uri="http://keycloak:8080/realms/smartconnect"
+# Only real secrets live here. Non-secret config (issuer URI, rate limits, ...) is in Consul KV
+# (infra/consul/config), so a new service needs a Vault entry only if it has secrets.
 
 echo "vault seed complete"
