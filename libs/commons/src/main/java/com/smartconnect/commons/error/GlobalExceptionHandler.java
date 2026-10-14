@@ -54,6 +54,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {
+        // Spring MVC's own exceptions carry their status: unknown path (404), wrong method (405),
+        // missing parameter (400), ... - those are caller mistakes, not server errors.
+        if (ex instanceof org.springframework.web.ErrorResponse framework) {
+            HttpStatus status = HttpStatus.resolve(framework.getStatusCode().value());
+            if (status != null && status.is4xxClientError()) {
+                log.debug("{} on {} {}: {}", status.value(), request.getMethod(), request.getRequestURI(), ex.getMessage());
+                return build(status, status.getReasonPhrase(), request);
+            }
+        }
         // Unmapped exceptions are the ones we most need visibility into - never swallow the
         // stack trace just because we're returning a generic 500 to the caller.
         log.error("unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
