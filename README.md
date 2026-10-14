@@ -36,6 +36,7 @@ http://localhost:5174 - each page appears only with its permission:
 | Sessions | active Keycloak SSO sessions; revoke one or sign a user out everywhere (user-service, `/api/sessions`) | `sessions:read` / `sessions:write` |
 | Event log | the latest records on every `events.*` topic, dead letters included (notification-service, `/api/events/recent`) | `events:read` |
 | Audit | **Actions**: every change through any SmartConnect API with the person who made it, denied attempts included. **Keycloak changes**: Keycloak's own admin events (30 days, also console changes). **Sign-ins**: logins and failures (30 days) | `audit:read` |
+| Request trace (drawer) | **Trace** on any Event log or Audit action row: the request's path through the services, a timeline per service and every log line it left (framework lines hidden by default), with links to its Jaeger traces (api-gateway, `/api/platform/traces/{correlationId}`, read from the logs in Elasticsearch) | `logs:read` |
 
 ### Audit trail
 
@@ -131,7 +132,7 @@ can't read Docker's `local` driver, which newer Docker Desktop uses by default.
 On every start `kibana-init` imports `infra/kibana/smartconnect.ndjson`:
 - **SmartConnect overview** dashboard: requests, 5xx error rate and p95 latency per service,
   and ERROR log lines per container.
-- **Trace a correlation ID** saved search: replace `*` in `correlation_id : *` with the
+- **Trace a correlation ID** saved search (the backoffice's request trace drawer shows the same, `logs:read`): replace `*` in `correlation_id : *` with the
   `X-Correlation-Id` of a response to follow that request through every service, Kafka included.
 
 The import overwrites those objects, so the file is the source of truth: change them in Kibana,

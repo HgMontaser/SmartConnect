@@ -5,6 +5,7 @@ import { SectionSpinner } from '../components/Spinner.jsx';
 import usePolling from '../hooks/usePolling.js';
 import { timeAgo } from '../utils/time.js';
 import * as api from '../api.js';
+import TraceDrawer from '../components/TraceDrawer.jsx';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -12,11 +13,13 @@ const FILTERS = [
   { id: 'dead', label: 'Dead letters' },
 ];
 
-export default function EventLogPage({ getToken }) {
+export default function EventLogPage({ getToken, canTrace }) {
   const load = useCallback(() => api.listRecentEvents(getToken()), [getToken]);
   const { data: events, error, setError, loading } = usePolling(load, 3000);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [tracing, setTracing] = useState(null);
+  const columns = canTrace ? 6 : 5;
 
   const counts = useMemo(
     () => ({
@@ -72,19 +75,20 @@ export default function EventLogPage({ getToken }) {
               <th>Source</th>
               <th>Topic</th>
               <th>Key</th>
+              {canTrace && <th aria-label="Trace" />}
             </tr>
           </thead>
           <tbody>
             {loading && !events && (
               <tr>
-                <td colSpan={5} className="table-empty">
+                <td colSpan={columns} className="table-empty">
                   <SectionSpinner label="Loading events…" />
                 </td>
               </tr>
             )}
             {events && filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="table-empty">No events.</td>
+                <td colSpan={columns} className="table-empty">No events.</td>
               </tr>
             )}
             {filtered.map((e) => (
@@ -102,11 +106,21 @@ export default function EventLogPage({ getToken }) {
                   {e.deadLetter && <span className="state-pill tone-bad">DLT</span>} {e.topic}
                 </td>
                 <td className="mono-cell">{e.key || '—'}</td>
+                {canTrace && (
+                  <td className="trace-cell">
+                    {e.correlationId && (
+                      <button type="button" className="trace-button" onClick={() => setTracing(e.correlationId)} title="Follow the request that caused this event">
+                        Trace
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {tracing && <TraceDrawer correlationId={tracing} getToken={getToken} onClose={() => setTracing(null)} />}
     </>
   );
 }

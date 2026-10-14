@@ -5,6 +5,7 @@ import { SectionSpinner } from '../components/Spinner.jsx';
 import usePolling from '../hooks/usePolling.js';
 import { timeAgo } from '../utils/time.js';
 import * as api from '../api.js';
+import TraceDrawer from '../components/TraceDrawer.jsx';
 
 const TABS = [
   { id: 'actions', label: 'Actions', hint: 'Every change made through a SmartConnect API, with the person who made it - denied and failed attempts included.' },
@@ -18,8 +19,10 @@ function statusTone(status) {
   return 'tone-bad';
 }
 
-export default function AuditPage({ getToken }) {
+export default function AuditPage({ getToken, canTrace }) {
   const [tab, setTab] = useState('actions');
+  const [tracing, setTracing] = useState(null);
+  const traceColumn = canTrace && tab === 'actions';
   const [search, setSearch] = useState('');
 
   const loader = useCallback(() => {
@@ -66,7 +69,7 @@ export default function AuditPage({ getToken }) {
         <table className="data-table">
           <thead>
             {tab === 'actions' && (
-              <tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Result</th></tr>
+              <tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Result</th>{traceColumn && <th aria-label="Trace" />}</tr>
             )}
             {tab === 'admin' && (
               <tr><th>When</th><th>Operation</th><th>Resource</th><th>By</th><th>IP</th></tr>
@@ -77,10 +80,10 @@ export default function AuditPage({ getToken }) {
           </thead>
           <tbody>
             {loading && !data && (
-              <tr><td colSpan={5} className="table-empty"><SectionSpinner label="Loading audit trail…" /></td></tr>
+              <tr><td colSpan={traceColumn ? 6 : 5} className="table-empty"><SectionSpinner label="Loading audit trail…" /></td></tr>
             )}
             {data && rows.length === 0 && (
-              <tr><td colSpan={5} className="table-empty">Nothing recorded yet.</td></tr>
+              <tr><td colSpan={traceColumn ? 6 : 5} className="table-empty">Nothing recorded yet.</td></tr>
             )}
             {tab === 'actions' &&
               rows.map((e) => (
@@ -94,6 +97,15 @@ export default function AuditPage({ getToken }) {
                     {Object.entries(e.record.targets || {}).map(([k, v]) => `${k}=${v}`).join(', ') || '—'}
                   </td>
                   <td><span className={`state-pill ${statusTone(e.record.status)}`}>{e.record.status}</span></td>
+                  {traceColumn && (
+                    <td className="trace-cell">
+                      {e.correlationId && (
+                        <button type="button" className="trace-button" onClick={() => setTracing(e.correlationId)} title="Follow this request through every service">
+                          Trace
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             {tab === 'admin' &&
@@ -122,6 +134,7 @@ export default function AuditPage({ getToken }) {
           </tbody>
         </table>
       </div>
+      {tracing && <TraceDrawer correlationId={tracing} getToken={getToken} onClose={() => setTracing(null)} />}
     </>
   );
 }

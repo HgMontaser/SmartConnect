@@ -9,6 +9,10 @@ spring:
         # Defaults for every route; a service can raise its own with smartconnect.gateway.timeout.
         connect-timeout: 2000
         response-timeout: 10s
+      # The gateway and the service behind it both answer with X-Correlation-Id (the same value,
+      # since the gateway forwards it); return it once.
+      default-filters:
+        - DedupeResponseHeader=X-Correlation-Id, RETAIN_FIRST
     circuitbreaker:
       resilience4j:
         # The gateway's response timeout decides when a call is too slow (Resilience4j's own

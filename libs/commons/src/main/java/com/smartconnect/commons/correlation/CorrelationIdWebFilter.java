@@ -32,10 +32,15 @@ public class CorrelationIdWebFilter implements WebFilter {
         }
         final String finalCorrelationId = correlationId;
 
-        exchange.getAttributes().put(CorrelationConstants.EXCHANGE_ATTRIBUTE, finalCorrelationId);
-        exchange.getResponse().getHeaders().set(CorrelationConstants.HEADER_NAME, finalCorrelationId);
+        // The request goes on with the id too: a generated one must reach the services the gateway
+        // routes to, or each of them starts a new id and the request's trail breaks at the first hop.
+        ServerWebExchange stamped = exchange.mutate()
+                .request(r -> r.headers(h -> h.set(CorrelationConstants.HEADER_NAME, finalCorrelationId)))
+                .build();
+        stamped.getAttributes().put(CorrelationConstants.EXCHANGE_ATTRIBUTE, finalCorrelationId);
+        stamped.getResponse().getHeaders().set(CorrelationConstants.HEADER_NAME, finalCorrelationId);
 
-        return chain.filter(exchange)
+        return chain.filter(stamped)
                 .contextWrite(ctx -> ctx.put(CorrelationConstants.REACTOR_CONTEXT_KEY, finalCorrelationId));
     }
 

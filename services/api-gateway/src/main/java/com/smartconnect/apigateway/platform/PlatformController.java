@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,15 +39,18 @@ public class PlatformController {
     private final DiscoveredRoutesLocator routes;
     private final CircuitBreakerRegistry breakers;
     private final PlatformMetrics metrics;
+    private final RequestTraces traces;
     /** The gateway's own Consul ACL token: with deny-by-default, an anonymous query sees no services. */
     private final String consulToken;
 
     public PlatformController(ConsulClient consul, DiscoveredRoutesLocator routes, CircuitBreakerRegistry breakers,
-                              PlatformMetrics metrics, @Value("${spring.cloud.consul.token:}") String consulToken) {
+                              PlatformMetrics metrics, RequestTraces traces,
+                              @Value("${spring.cloud.consul.token:}") String consulToken) {
         this.consul = consul;
         this.routes = routes;
         this.breakers = breakers;
         this.metrics = metrics;
+        this.traces = traces;
         this.consulToken = consulToken.isBlank() ? null : consulToken;
     }
 
@@ -55,6 +59,16 @@ public class PlatformController {
     @PreAuthorize("hasAuthority('platform:read')")
     public Mono<PlatformMetrics.MetricsView> metrics(@RequestParam(defaultValue = "1h") String range) {
         return metrics.fetch(PlatformMetrics.Range.of(range));
+    }
+
+    /**
+     * One request through every service, from the log lines carrying its correlation id. Log
+     * lines can hold personal data, hence its own permission rather than platform:read.
+     */
+    @GetMapping("/traces/{correlationId}")
+    @PreAuthorize("hasAuthority('logs:read')")
+    public Mono<RequestTraces.Trace> trace(@PathVariable String correlationId) {
+        return traces.find(correlationId);
     }
 
     /** One service's traffic per endpoint - or, for the gateway, per route - over {@code range}. */

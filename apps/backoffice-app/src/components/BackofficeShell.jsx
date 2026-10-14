@@ -244,8 +244,8 @@ export default function BackofficeShell({ keycloak }) {
             {active === 'sessions' && (
               <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
             )}
-            {active === 'events' && <EventLogPage getToken={getToken} />}
-            {active === 'audit' && <AuditPage getToken={getToken} />}
+            {active === 'events' && <EventLogPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
+            {active === 'audit' && <AuditPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
           </Suspense>
         </main>
         {active === 'users' && (

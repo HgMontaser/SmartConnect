@@ -49,7 +49,8 @@ public class EventLog {
                 deadLetter,
                 deadLetter ? header(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE) : null,
                 deadLetter ? header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC) : null,
-                event == null ? truncate(record.value()) : null);
+                event == null ? truncate(record.value()) : null,
+                text(event, "correlationId"));
         synchronized (entries) {
             entries.addFirst(entry);
             while (entries.size() > CAPACITY) {
@@ -58,7 +59,7 @@ public class EventLog {
         }
         if (!deadLetter && event != null && "audit.performed".equals(entry.type()) && event.hasNonNull("payload")) {
             synchronized (audit) {
-                audit.addFirst(new AuditEntry(entry.eventId(), entry.source(), entry.timestamp(), event.get("payload")));
+                audit.addFirst(new AuditEntry(entry.eventId(), entry.source(), entry.timestamp(), entry.correlationId(), event.get("payload")));
                 while (audit.size() > AUDIT_CAPACITY) {
                     audit.removeLast();
                 }
@@ -110,11 +111,12 @@ public class EventLog {
         return value == null ? null : value.length() > 200 ? value.substring(0, 200) + "…" : value;
     }
 
-    public record AuditEntry(String eventId, String source, Instant timestamp, JsonNode record) {
+    /** @param correlationId the request that caused it - the backoffice traces it through the logs */
+    public record AuditEntry(String eventId, String source, Instant timestamp, String correlationId, JsonNode record) {
     }
 
     public record EventLogEntry(String topic, int partition, long offset, String key, String eventId, String type,
                                 String source, Instant timestamp, boolean deadLetter, String error,
-                                String originalTopic, String raw) {
+                                String originalTopic, String raw, String correlationId) {
     }
 }

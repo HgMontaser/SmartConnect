@@ -118,6 +118,11 @@ export function getPlatformMetrics(range, token) {
   return request(`/api/platform/metrics?range=${encodeURIComponent(range)}`, { token });
 }
 
+// Every log line a request left across the services, by its X-Correlation-Id (needs logs:read).
+export function getTrace(correlationId, token) {
+  return request(`/api/platform/traces/${encodeURIComponent(correlationId)}`, { token });
+}
+
 // One service's traffic per endpoint (per route for api-gateway) over the range.
 export function getEndpointMetrics(service, range, token) {
   return request(
