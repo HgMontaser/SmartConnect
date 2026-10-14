@@ -209,6 +209,9 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       CLUSTER_ID: "smartconnect-kraft-cluster-1"
+      # Keep the log on the volume: the image's default is /tmp/kraft-combined-logs inside the
+      # container, so every recreate lost all topics and events.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:

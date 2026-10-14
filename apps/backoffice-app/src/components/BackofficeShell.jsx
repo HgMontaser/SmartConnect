@@ -20,7 +20,7 @@ const PermissionsPage = lazyWithReload(() => import('../pages/PermissionsPage.js
 const GatewayHealthPage = lazyWithReload(() => import('../pages/GatewayHealthPage.jsx'));
 const TrafficPage = lazyWithReload(() => import('../pages/TrafficPage.jsx'));
 const SessionsPage = lazyWithReload(() => import('../pages/SessionsPage.jsx'));
-const EventLogPage = lazyWithReload(() => import('../pages/EventLogPage.jsx'));
+const EventsPage = lazyWithReload(() => import('../pages/EventsPage.jsx'));
 const AuditPage = lazyWithReload(() => import('../pages/AuditPage.jsx'));
 const EventStreamRail = lazyWithReload(() => import('./EventStreamRail.jsx'));
 const NoAccess = lazyWithReload(() => import('./NoAccess.jsx'));
@@ -189,7 +189,7 @@ export default function BackofficeShell({ keycloak }) {
         { id: 'gateway', label: 'Gateway health', icon: PulseIcon, permission: P.PLATFORM_READ },
         { id: 'traffic', label: 'Traffic', icon: ChartIcon, permission: P.PLATFORM_READ },
         { id: 'sessions', label: 'Sessions', icon: DevicesIcon, permission: P.SESSIONS_READ },
-        { id: 'events', label: 'Event log', icon: StreamIcon, permission: P.EVENTS_READ },
+        { id: 'events', label: 'Events', icon: StreamIcon, permission: P.EVENTS_READ },
         { id: 'audit', label: 'Audit', icon: AuditIcon, permission: P.AUDIT_READ },
       ],
     },
@@ -247,7 +247,7 @@ export default function BackofficeShell({ keycloak }) {
               {active === 'sessions' && (
                 <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
               )}
-              {active === 'events' && <EventLogPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
+              {active === 'events' && <EventsPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
               {active === 'audit' && <AuditPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
             </Suspense>
           </PageErrorBoundary>

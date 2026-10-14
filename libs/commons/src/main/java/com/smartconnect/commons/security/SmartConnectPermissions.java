@@ -49,7 +49,7 @@ public final class SmartConnectPermissions {
         catalog.put(PLATFORM_READ, "View platform health and traffic: services, instances, routes, circuit breakers, request metrics");
         catalog.put(SESSIONS_READ, "View active sign-in sessions");
         catalog.put(SESSIONS_WRITE, "Revoke sessions and sign users out");
-        catalog.put(EVENTS_READ, "View the platform event log and dead letters");
+        catalog.put(EVENTS_READ, "View Kafka: every topic, its events with payloads and headers, dead letters, consumer groups and lag");
         catalog.put(AUDIT_READ, "View the audit trail: who changed what, admin changes, sign-ins");
         catalog.put(LOGS_READ, "Trace a request through every service's logs (log lines can contain personal data)");
         return Collections.unmodifiableMap(catalog);

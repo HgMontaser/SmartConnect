@@ -147,6 +147,29 @@ export function listRecentEvents(token, limit = 200) {
   return request(`/api/events/recent?limit=${limit}`, { token });
 }
 
+// Kafka browsing (notification-service, events:read).
+export function listTopics(token) {
+  return request('/api/events/topics', { token });
+}
+
+// order: newest | oldest; cursor: a previous page's `next`.
+export function listTopicMessages(topic, { partition, order = 'newest', limit = 50, cursor } = {}, token) {
+  const params = new URLSearchParams({ order, limit: String(limit) });
+  if (partition != null && partition !== '') params.set('partition', String(partition));
+  if (cursor) params.set('cursor', cursor);
+  return request(`/api/events/topics/${encodeURIComponent(topic)}/messages?${params}`, { token });
+}
+
+// One record by its exact position.
+export async function getTopicMessage(topic, partition, offset, token) {
+  const page = await listTopicMessages(topic, { partition, order: 'oldest', limit: 1, cursor: `${partition}:${offset}` }, token);
+  return page.messages.find((m) => m.offset === offset) ?? null;
+}
+
+export function listConsumerGroups(token) {
+  return request('/api/events/groups', { token });
+}
+
 export function listAuditActions(token, limit = 200) {
   return request(`/api/events/audit?limit=${limit}`, { token });
 }

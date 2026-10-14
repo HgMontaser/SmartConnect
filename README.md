@@ -34,9 +34,9 @@ http://localhost:5174 - each page appears only with its permission:
 | Gateway health | every Consul service, its instances and health, its gateway routes, its circuit breaker (api-gateway, `/api/platform/services`), and its traffic: req/min, 5xx share and p95 latency over the last 5 minutes with a one-hour trend (api-gateway, `/api/platform/metrics?range=15m\|1h\|6h\|24h`, read from the metrics in Elasticsearch) | `platform:read` |
 | Traffic | requests/min, 5xx share and p95 latency of every service as small multiples with one shared crosshair, over 15 min / 1 h / 6 h / 24 h; open a service for its endpoints (busiest, slowest, most 5xx), or the gateway for its routes incl. how much it rate-limited (api-gateway, `/api/platform/metrics` and `/api/platform/metrics/endpoints?service=`) | `platform:read` |
 | Sessions | active Keycloak SSO sessions; revoke one or sign a user out everywhere (user-service, `/api/sessions`) | `sessions:read` / `sessions:write` |
-| Event log | the latest records on every `events.*` topic, dead letters included (notification-service, `/api/events/recent`) | `events:read` |
+| Events | Kafka in the browser: **Messages** - a live feed of every topic, or one topic newest/oldest first per partition with paging and search, each record with its key, headers, payload and SmartConnect event fields (and **Trace the request** with `logs:read`); **Topics** - partitions, message counts, retention, consumer groups; **Consumers** - groups, members and lag (notification-service, `/api/events/recent`, `/api/events/topics[/{topic}/messages]`, `/api/events/groups`) | `events:read` |
 | Audit | **Actions**: every change through any SmartConnect API with the person who made it, denied attempts included. **Keycloak changes**: Keycloak's own admin events (30 days, also console changes). **Sign-ins**: logins and failures (30 days) | `audit:read` |
-| Request trace (drawer) | **Trace** on any Event log or Audit action row: the request's path through the services, a timeline per service and every log line it left (framework lines hidden by default), with links to its Jaeger traces (api-gateway, `/api/platform/traces/{correlationId}`, read from the logs in Elasticsearch) | `logs:read` |
+| Request trace (drawer) | **Trace** on an Events message or an Audit action row: the request's path through the services, a timeline per service and every log line it left (framework lines hidden by default), with links to its Jaeger traces (api-gateway, `/api/platform/traces/{correlationId}`, read from the logs in Elasticsearch) | `logs:read` |
 
 ### Audit trail
 
@@ -114,6 +114,8 @@ Services talk asynchronously through Kafka using one envelope (`EventEnvelope`, 
   `spring.kafka.*.observation-enabled` only reaches Boot's own ones.
 - The platform uses it too: user-service publishes `user.created/updated/deleted` on
   `events.user`, which notification-service pushes to the backoffice over WebSocket.
+- Kafka keeps its log on the `kafka-data` volume (`KAFKA_LOG_DIRS`), so events survive a
+  container recreate.
 - Topics are auto-created by the broker locally; create them explicitly (partitions,
   retention) in production.
 

@@ -16,8 +16,8 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * Taps every event topic ({@code events.*}, dead-letter topics included) for the backoffice
- * "Event log" page. Reads raw strings rather than envelopes so it can show anything - including
+ * Taps every topic (events.*, dead letters, and the services' other topics) for the backoffice
+ * Events page's live view. Reads raw strings rather than envelopes so it can show anything - including
  * records that failed to decode. Keeps the last {@value #CAPACITY} in memory: on startup it
  * reads each topic from the beginning (a fresh consumer group per instance), then follows live.
  * That's fine for local topics; with large production topics it should start from recent
@@ -38,7 +38,9 @@ public class EventLog {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topicPattern = "events\\..*", containerFactory = EventLogConsumerConfig.FACTORY)
+    // Every topic but Kafka's internal ones (__consumer_offsets, ...): events.*, dead letters, and
+    // the services' other topics such as permission-catalog.
+    @KafkaListener(topicPattern = "[^_].*", containerFactory = EventLogConsumerConfig.FACTORY)
     public void on(ConsumerRecord<String, String> record) {
         boolean deadLetter = EventTopics.isDeadLetter(record.topic());
         JsonNode event = parse(record.value());
