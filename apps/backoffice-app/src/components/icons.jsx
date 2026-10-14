@@ -163,3 +163,12 @@ export function AuditIcon() {
     </Icon>
   );
 }
+
+export function AlertIcon() {
+  return (
+    <Icon>
+      <path d="M10 3.5 17 16H3z" />
+      <path d="M10 8.5v3.2M10 13.8v.2" />
+    </Icon>
+  );
+}

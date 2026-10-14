@@ -113,6 +113,11 @@ export function getPlatformServices(token) {
   return request('/api/platform/services', { token });
 }
 
+// Requests, 5xx rate and p95 latency per service; range is 15m, 1h, 6h or 24h.
+export function getPlatformMetrics(range, token) {
+  return request(`/api/platform/metrics?range=${encodeURIComponent(range)}`, { token });
+}
+
 export function listSessions(token) {
   return request('/api/sessions', { token });
 }

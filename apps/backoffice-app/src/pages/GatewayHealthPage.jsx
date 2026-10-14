@@ -2,8 +2,10 @@ import { useCallback } from 'react';
 import PageHeader from '../components/PageHeader.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { SectionSpinner } from '../components/Spinner.jsx';
+import ServiceMetrics from '../components/ServiceMetrics.jsx';
 import usePolling from '../hooks/usePolling.js';
 import * as api from '../api.js';
+import { formatPercent, formatRate } from '../utils/metrics.js';
 
 const CIRCUIT_LABELS = {
   CLOSED: { label: 'Closed', tone: 'ok', hint: 'Healthy - calls flow normally' },
@@ -22,6 +24,11 @@ function instanceTone(status) {
 export default function GatewayHealthPage({ getToken }) {
   const load = useCallback(() => api.getPlatformServices(getToken()), [getToken]);
   const { data: services, error, setError, loading } = usePolling(load, 5000);
+  // Services push metrics every 30s, so polling faster would only redraw the same numbers.
+  const loadMetrics = useCallback(() => api.getPlatformMetrics('1h', getToken()), [getToken]);
+  const { data: metrics, error: metricsError } = usePolling(loadMetrics, 30000);
+  const metricsByService = new Map((metrics?.services ?? []).map((m) => [m.service, m]));
+  const edge = metricsByService.get('api-gateway');
 
   const total = services?.length ?? 0;
   const healthy = services?.filter((s) => s.instances.length > 0 && s.instances.every((i) => i.status === 'PASSING')).length ?? 0;
@@ -30,9 +37,10 @@ export default function GatewayHealthPage({ getToken }) {
     <>
       <PageHeader
         title="Gateway health"
-        subtitle="Services registered in Consul, their instances, the routes the gateway built for them, and their circuit breakers. Refreshes every 5s."
+        subtitle="Services registered in Consul, their traffic, instances, routes and circuit breakers. Health refreshes every 5s, traffic every 30s (last 5 minutes, trend over the last hour)."
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      {metricsError && !metrics && <div className="info-note">Traffic metrics are unavailable right now ({metricsError}). Health still updates.</div>}
       {loading && !services && <SectionSpinner label="Loading platform state…" />}
       {services && (
         <>
@@ -48,6 +56,14 @@ export default function GatewayHealthPage({ getToken }) {
             <div className="stat-tile">
               <span className="stat-value">{services.reduce((n, s) => n + s.routes.length, 0)}</span>
               <span className="stat-label">gateway routes</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-value">{formatRate(edge?.requestsPerMinute)}</span>
+              <span className="stat-label">req/min at the gateway</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-value">{formatPercent(edge?.errorRate)}</span>
+              <span className="stat-label">5xx at the gateway</span>
             </div>
           </div>
           <div className="service-grid">
@@ -70,6 +86,12 @@ export default function GatewayHealthPage({ getToken }) {
                     )}
                   </div>
                   <div className="service-card-body">
+                    <span className="field-label">Traffic</span>
+                    {metrics ? (
+                      <ServiceMetrics metrics={metricsByService.get(s.name)} bucketSeconds={metrics.bucketSeconds} />
+                    ) : (
+                      <span className="muted-text">{metricsError ? 'Unavailable' : 'Loading…'}</span>
+                    )}
                     <span className="field-label">Instances</span>
                     {s.instances.length === 0 && <span className="muted-text">None registered</span>}
                     {s.instances.map((i) => (

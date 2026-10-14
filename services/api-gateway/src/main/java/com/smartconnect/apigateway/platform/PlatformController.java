@@ -1,7 +1,7 @@
 package com.smartconnect.apigateway.platform;
 
 import com.ecwid.consul.v1.ConsulClient;
-import com.ecwid.consul.v1.QueryParams;
+import com.ecwid.consul.v1.catalog.CatalogServicesRequest;
 import com.ecwid.consul.v1.health.HealthServicesRequest;
 import com.ecwid.consul.v1.health.model.Check;
 import com.ecwid.consul.v1.health.model.HealthService;
@@ -9,10 +9,12 @@ import com.smartconnect.apigateway.routing.DiscoveredRoutesLocator;
 import com.smartconnect.commons.discovery.GatewayRouteMetadata;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -35,11 +37,24 @@ public class PlatformController {
     private final ConsulClient consul;
     private final DiscoveredRoutesLocator routes;
     private final CircuitBreakerRegistry breakers;
+    private final PlatformMetrics metrics;
+    /** The gateway's own Consul ACL token: with deny-by-default, an anonymous query sees no services. */
+    private final String consulToken;
 
-    public PlatformController(ConsulClient consul, DiscoveredRoutesLocator routes, CircuitBreakerRegistry breakers) {
+    public PlatformController(ConsulClient consul, DiscoveredRoutesLocator routes, CircuitBreakerRegistry breakers,
+                              PlatformMetrics metrics, @Value("${spring.cloud.consul.token:}") String consulToken) {
         this.consul = consul;
         this.routes = routes;
         this.breakers = breakers;
+        this.metrics = metrics;
+        this.consulToken = consulToken.isBlank() ? null : consulToken;
+    }
+
+    /** Requests, 5xx rate and p95 latency per service over {@code range} (15m, 1h, 6h, 24h). */
+    @GetMapping("/metrics")
+    @PreAuthorize("hasAuthority('platform:read')")
+    public Mono<PlatformMetrics.MetricsView> metrics(@RequestParam(defaultValue = "1h") String range) {
+        return metrics.fetch(PlatformMetrics.Range.of(range));
     }
 
     @GetMapping("/services")
@@ -51,11 +66,11 @@ public class PlatformController {
 
     private List<ServiceView> snapshot(List<RouteDefinition> routeList) {
         List<ServiceView> services = new ArrayList<>();
-        for (String name : consul.getCatalogServices(QueryParams.DEFAULT).getValue().keySet()) {
+        for (String name : consul.getCatalogServices(CatalogServicesRequest.newBuilder().setToken(consulToken).build()).getValue().keySet()) {
             if ("consul".equals(name)) {
                 continue;
             }
-            List<HealthService> entries = consul.getHealthServices(name, HealthServicesRequest.newBuilder().build()).getValue();
+            List<HealthService> entries = consul.getHealthServices(name, HealthServicesRequest.newBuilder().setToken(consulToken).build()).getValue();
             List<InstanceView> instances = entries.stream().map(PlatformController::instance).toList();
             Map<String, String> meta = entries.isEmpty() ? Map.of() : entries.get(0).getService().getMeta();
             List<RouteView> serviceRoutes = routeList.stream()
