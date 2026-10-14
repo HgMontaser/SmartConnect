@@ -182,5 +182,18 @@ curl -s -X POST \
 ## Tests
 
 ```
-docker run --rm -v "$PWD":/w -w /w maven:3.9-eclipse-temurin-17 mvn -B verify
+mvn verify              # unit tests + integration tests (needs Docker, ~1 min)
+mvn verify -DskipITs    # unit tests only
 ```
+
+- `*Test` classes are unit tests. `*IT` classes run against real containers (Testcontainers):
+  - commons `MessagingIT` - real Kafka: publish/consume, retries then dead-letter, undecodable
+    records straight to dead-letter.
+  - api-gateway `GatewayRoutingIT` - real Consul (seeded from `infra/consul/config`), Vault and
+    Redis plus a stub service registered in Consul: discovered routing, 401/404, 504 on timeout,
+    503 and circuit opening when the service dies.
+  - user-service `UserServiceKeycloakIT` - real Keycloak (the repo's realm export and
+    `infra/keycloak/init.sh`), Kafka, Consul and Vault, with real tokens: permission bootstrap,
+    roles CRUD and the admin lock, validate-before-write, catalog sync and orphaning, and
+    permission enforcement.
+- CI runs `mvn verify`, so integration tests gate every push.

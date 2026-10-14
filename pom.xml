@@ -27,6 +27,9 @@
     <maven.compiler.parameters>true</maven.compiler.parameters>
     <spring-boot.version>3.3.4</spring-boot.version>
     <spring-cloud.version>2023.0.3</spring-cloud.version>
+    <!-- Newer than Boot 3.3's 1.19.8, which can't talk to Docker Engine 29+ -->
+    <testcontainers.version>1.21.3</testcontainers.version>
+    <testcontainers-keycloak.version>3.4.0</testcontainers-keycloak.version>
   </properties>
 
   <modules>
@@ -53,6 +56,14 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- Imported first so it wins over the Testcontainers version in Boot's BOM -->
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
@@ -72,12 +83,54 @@
         <artifactId>smartconnect-commons</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.github.dasniko</groupId>
+        <artifactId>testcontainers-keycloak</artifactId>
+        <version>${testcontainers-keycloak.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
   <build>
+    <!--
+      *Test classes are unit tests (surefire, fast, no Docker). *IT classes are integration tests
+      against real containers (Testcontainers) and run in `mvn verify` via failsafe; skip them in
+      a quick local loop with -DskipITs. CI runs everything.
+    -->
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
     <pluginManagement>
       <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>3.2.5</version>
+          <configuration>
+            <!-- Run against the jar's classes, not the repackaged Boot jar -->
+            <classesDirectory>${project.build.outputDirectory}</classesDirectory>
+            <systemPropertyVariables>
+              <!-- Docker Engine 29+ rejects the older API version docker-java asks for by default -->
+              <api.version>1.44</api.version>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.2.5</version>
+        </plugin>
         <plugin>
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>
