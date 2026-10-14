@@ -21,7 +21,7 @@ const LIVE = '__live';
 
 // Kafka for the backoffice: every topic and its events with payloads and headers, dead
 // letters, and the consumer groups reading them.
-export default function EventsPage({ getToken, canTrace }) {
+export default function EventsPage({ getToken, canTrace, liveEvents = [], connected = false }) {
   const [tab, setTab] = useState('messages');
   const [selected, setSelected] = useState(LIVE);
   const [search, setSearch] = useState('');
@@ -49,7 +49,7 @@ export default function EventsPage({ getToken, canTrace }) {
         subtitle="Every Kafka topic and the events on it - payloads, headers, dead letters - and the consumer groups reading them."
         search={tab === 'messages' ? search : undefined}
         onSearchChange={tab === 'messages' ? setSearch : undefined}
-        searchPlaceholder="Search loaded events by type, key, source, correlation id or payload"
+        searchPlaceholder="Search by person, action, service, event type or correlation id"
       />
       <div className="filter-bar">
         <div className="segmented" role="tablist">
@@ -83,7 +83,7 @@ export default function EventsPage({ getToken, canTrace }) {
               onClick={() => setSelected(LIVE)}
             >
               <span className="topic-item-name">
-                <span className="live-dot live-dot--success" /> All topics · live
+                <span className={`live-dot ${connected ? 'live-dot--success' : 'live-dot--warn'}`} /> Live activity
               </span>
             </button>
             <span className="nav-section">Topics</span>
@@ -106,7 +106,7 @@ export default function EventsPage({ getToken, canTrace }) {
           </nav>
           <div className="events-main">
             {selected === LIVE || !topic ? (
-              <LiveFeed getToken={getToken} search={search} onOpen={setOpen} />
+              <LiveFeed getToken={getToken} search={search} liveEvents={liveEvents} connected={connected} onOpen={setOpen} />
             ) : (
               <TopicMessages key={topic.name} topic={topic} getToken={getToken} search={search} onOpen={setOpen} />
             )}

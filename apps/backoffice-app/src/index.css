@@ -930,83 +930,6 @@ button {
   gap: 8px;
 }
 
-/* ---------- Event stream rail ---------- */
-
-.event-rail {
-  width: 320px;
-  flex-shrink: 0;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.event-rail-header {
-  padding: 20px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.event-rail-heading {
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 600;
-  font-size: 16px;
-  margin: 0;
-  color: var(--text);
-}
-
-.event-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.event-empty {
-  color: var(--text-3);
-  font-size: 13px;
-  padding: 12px 4px;
-  line-height: 1.5;
-}
-
-.event-item {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  background: var(--surface-2);
-}
-
-.event-item-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.event-name {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
-  color: var(--accent);
-}
-
-.event-time {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--text-3);
-  white-space: nowrap;
-}
-
-.event-description {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.4;
-}
-
 /* ---------- Error banner ---------- */
 
 .error-banner {
@@ -1424,12 +1347,6 @@ button {
 }
 
 /* ---------- Responsive ---------- */
-
-@media (max-width: 1280px) {
-  .event-rail {
-    display: none;
-  }
-}
 
 @media (max-width: 860px) {
   .sidebar {
@@ -2523,5 +2440,149 @@ button {
 
   .msg-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Events: live activity ---------- */
+
+.activity-card {
+  padding: 4px 0;
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 2px 0 0 transparent;
+  transition: box-shadow 1.2s ease, background 1.2s ease;
+}
+
+.activity:last-child {
+  border-bottom: none;
+}
+
+.activity--new {
+  background: rgba(45, 212, 191, 0.05);
+  box-shadow: inset 2px 0 0 var(--accent);
+  animation: activity-in 0.4s ease-out;
+}
+
+@keyframes activity-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.activity-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.activity-avatar--system {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--text-2);
+}
+
+.activity--failed .activity-avatar {
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.activity-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.activity-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.activity-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.activity-text strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.activity-service {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.activity-event {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.activity-event:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.activity-event--dlt {
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.activity-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.activity-time--new {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity--new {
+    animation: none;
   }
 }

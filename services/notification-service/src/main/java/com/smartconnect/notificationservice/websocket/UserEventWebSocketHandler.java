@@ -9,14 +9,14 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
  * Server side of the {@code /ws/events} bridge. This is a push-only channel - clients (only
  * backoffice-app today) don't send anything meaningful over it, so incoming text frames are
  * ignored; the handler exists purely to track session lifecycle for
- * {@link UserEventBroadcaster}.
+ * {@link LiveEventBroadcaster}.
  */
 @Component
 public class UserEventWebSocketHandler extends TextWebSocketHandler {
 
-    private final UserEventBroadcaster broadcaster;
+    private final LiveEventBroadcaster broadcaster;
 
-    public UserEventWebSocketHandler(UserEventBroadcaster broadcaster) {
+    public UserEventWebSocketHandler(LiveEventBroadcaster broadcaster) {
         this.broadcaster = broadcaster;
     }
 

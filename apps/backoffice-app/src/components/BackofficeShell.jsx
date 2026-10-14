@@ -22,41 +22,11 @@ const TrafficPage = lazyWithReload(() => import('../pages/TrafficPage.jsx'));
 const SessionsPage = lazyWithReload(() => import('../pages/SessionsPage.jsx'));
 const EventsPage = lazyWithReload(() => import('../pages/EventsPage.jsx'));
 const AuditPage = lazyWithReload(() => import('../pages/AuditPage.jsx'));
-const EventStreamRail = lazyWithReload(() => import('./EventStreamRail.jsx'));
 const NoAccess = lazyWithReload(() => import('./NoAccess.jsx'));
 
 const MAX_EVENTS = 50;
 const TOAST_MS = 3200;
-let eventSeq = 0;
 let toastSeq = 0;
-
-function displayEventName(eventType) {
-  switch (eventType) {
-    case 'USER_CREATED':
-      return 'user.created';
-    case 'USER_UPDATED':
-      return 'user.updated';
-    case 'USER_DELETED':
-      return 'user.deleted';
-    default:
-      return (eventType || 'unknown').toLowerCase().replace(/_/g, '.');
-  }
-}
-
-function describeEvent(event) {
-  const username = event.username || 'a user';
-  const roles = Array.isArray(event.realmRoles) && event.realmRoles.length > 0 ? event.realmRoles.join(', ') : 'no roles';
-  switch (event.eventType) {
-    case 'USER_CREATED':
-      return `${username} was created with ${roles}`;
-    case 'USER_UPDATED':
-      return `${username} was updated`;
-    case 'USER_DELETED':
-      return `${username} was deleted`;
-    default:
-      return `${username} triggered ${event.eventType || 'an unknown event'}`;
-  }
-}
 
 export default function BackofficeShell({ keycloak }) {
   // Permissions come from the access token. Re-read it whenever keycloak-js refreshes it, and
@@ -144,24 +114,14 @@ export default function BackofficeShell({ keycloak }) {
     [getToken]
   );
 
-  const [events, setEvents] = useState([]);
+  // Every Kafka event, pushed as it lands (one socket): user events also update the users
+  // table; the Events page's live header shows them all.
+  const [liveEvents, setLiveEvents] = useState([]);
   const { applyUserEvent } = usersState;
   const handleSocketEvent = useCallback(
     (event) => {
-      eventSeq += 1;
-      setEvents((prev) =>
-        [
-          {
-            id: `${event.userId || 'evt'}-${event.occurredAt || Date.now()}-${eventSeq}`,
-            eventType: event.eventType,
-            displayName: displayEventName(event.eventType),
-            description: describeEvent(event),
-            occurredAt: event.occurredAt || new Date().toISOString(),
-          },
-          ...prev,
-        ].slice(0, MAX_EVENTS)
-      );
-      applyUserEvent(event);
+      setLiveEvents((prev) => [{ ...event, receivedAt: Date.now() }, ...prev].slice(0, MAX_EVENTS));
+      if (event.user) applyUserEvent(event.user);
     },
     [applyUserEvent]
   );
@@ -247,16 +207,11 @@ export default function BackofficeShell({ keycloak }) {
               {active === 'sessions' && (
                 <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
               )}
-              {active === 'events' && <EventsPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
+              {active === 'events' && <EventsPage getToken={getToken} canTrace={can(P.LOGS_READ)} liveEvents={liveEvents} connected={connected} />}
               {active === 'audit' && <AuditPage getToken={getToken} canTrace={can(P.LOGS_READ)} />}
             </Suspense>
           </PageErrorBoundary>
         </main>
-        {active === 'users' && (
-          <Suspense fallback={null}>
-            <EventStreamRail events={events} />
-          </Suspense>
-        )}
       </div>
       <Toasts toasts={toasts} />
     </div>

@@ -6,10 +6,10 @@ const MAX_BACKOFF_MS = 30000;
 const GATEWAY_WS_URL = import.meta.env.VITE_GATEWAY_WS_URL || 'ws://localhost:8090';
 
 /**
- * Single WebSocket connection to the gateway's user-events bridge. This is the
- * ONLY live-data source in the app — both the Users table's "Last sync" indicator
- * and the Event stream rail are driven off the same onEvent callback from here,
- * not two separate connections/polling loops.
+ * Single WebSocket connection to the gateway's live-events bridge: every Kafka event
+ * as it lands. This is the ONLY live-data source in the app — the Users table's
+ * "Last sync" indicator and the Events page's live header are driven off the same
+ * onEvent callback from here, not separate connections or polling loops.
  *
  * The access token is a query param (browsers can't set custom headers on the WS
  * handshake), and it's rebuilt fresh from keycloak.token every time we (re)connect,
