@@ -23,8 +23,8 @@
   </description>
 
   <properties>
-    <!-- Pinned to match the Keycloak server image version (quay.io/keycloak/keycloak:25.0) -->
-    <keycloak-admin-client.version>25.0.6</keycloak-admin-client.version>
+    <!-- Since Keycloak 26 the admin client is released separately and works across 26.x servers -->
+    <keycloak-admin-client.version>26.0.12</keycloak-admin-client.version>
   </properties>
 
   <dependencies>

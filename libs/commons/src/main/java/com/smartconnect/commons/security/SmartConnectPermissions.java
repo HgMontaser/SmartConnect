@@ -29,6 +29,7 @@ public final class SmartConnectPermissions {
     public static final String SESSIONS_READ = "sessions:read";
     public static final String SESSIONS_WRITE = "sessions:write";
     public static final String EVENTS_READ = "events:read";
+    public static final String AUDIT_READ = "audit:read";
 
     public static final Map<String, String> SYSTEM = systemCatalog();
 
@@ -48,6 +49,7 @@ public final class SmartConnectPermissions {
         catalog.put(SESSIONS_READ, "View active sign-in sessions");
         catalog.put(SESSIONS_WRITE, "Revoke sessions and sign users out");
         catalog.put(EVENTS_READ, "View the platform event log and dead letters");
+        catalog.put(AUDIT_READ, "View the audit trail: who changed what, admin changes, sign-ins");
         return Collections.unmodifiableMap(catalog);
     }
 }

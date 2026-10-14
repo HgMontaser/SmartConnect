@@ -23,4 +23,11 @@ public class EventLogController {
     public List<EventLog.EventLogEntry> recent(@RequestParam(defaultValue = "100") int limit) {
         return eventLog.recent(Math.max(1, Math.min(limit, EventLog.CAPACITY)));
     }
+
+    /** Who changed what through any SmartConnect API (audit.performed events). */
+    @GetMapping("/audit")
+    @PreAuthorize("hasAuthority('audit:read')")
+    public List<EventLog.AuditEntry> audit(@RequestParam(defaultValue = "200") int limit) {
+        return eventLog.audit(Math.max(1, Math.min(limit, EventLog.AUDIT_CAPACITY)));
+    }
 }

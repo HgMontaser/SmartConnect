@@ -34,6 +34,17 @@ http://localhost:5174 - each page appears only with its permission:
 | Gateway health | every Consul service, its instances and health, its gateway routes, its circuit breaker (from api-gateway, `/api/platform/services`) | `platform:read` |
 | Sessions | active Keycloak SSO sessions; revoke one or sign a user out everywhere (user-service, `/api/sessions`) | `sessions:read` / `sessions:write` |
 | Event log | the latest records on every `events.*` topic, dead letters included (notification-service, `/api/events/recent`) | `events:read` |
+| Audit | **Actions**: every change through any SmartConnect API with the person who made it, denied attempts included. **Keycloak changes**: Keycloak's own admin events (30 days, also console changes). **Sign-ins**: logins and failures (30 days) | `audit:read` |
+
+### Audit trail
+
+- Every servlet service records each POST/PUT/PATCH/DELETE that reaches a controller - caller,
+  endpoint, path variables, status - to the `smartconnect.audit` log and as an
+  `audit.performed` event (commons `AuditInterceptor`, on by default; `smartconnect.audit.enabled`).
+- Keycloak stores admin events (with change details) and sign-in events for 30 days and logs
+  them at INFO, so they reach Kibana too.
+- Keycloak shows backoffice changes as made by `service-account-user-service`; the person is in
+  the Actions tab / `audit.performed` events.
 
 ## Discovery, routing and config
 
@@ -111,9 +122,12 @@ Keycloak is the only store — there's no extra database.
   `admin`, `user` and the built-in permissions are *system* entries and can't be deleted.
 - user-service syncs this catalog into Keycloak on every boot, so existing Keycloak
   databases are upgraded too.
-- user-service talks to Keycloak as its own `user-service` service account, limited to the
-  `smartconnect` realm (created by the one-shot `keycloak-init` job, `infra/keycloak/init.sh`).
-  The master admin is only used by that job.
+- user-service talks to Keycloak (26.x) as its own `user-service` service account, limited to
+  the `smartconnect` realm, and - through Keycloak's fine-grained admin permissions - to
+  managing only the `gateway` client among clients: it can't edit other apps (redirect URIs,
+  secrets) or create clients. It still needs realm-wide `manage-users` and `manage-realm` (realm
+  roles have no finer grain). Set up by the one-shot `keycloak-init` job
+  (`infra/keycloak/init.sh`), the only user of the master admin credentials.
 
 | Endpoint | Permission |
 | --- | --- |

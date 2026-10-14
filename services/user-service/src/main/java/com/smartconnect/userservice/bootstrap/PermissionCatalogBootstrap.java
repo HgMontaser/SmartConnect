@@ -6,7 +6,6 @@ import com.smartconnect.userservice.role.RoleService;
 import jakarta.ws.rs.NotFoundException;
 import org.keycloak.admin.client.resource.RoleResource;
 import org.keycloak.admin.client.resource.RolesResource;
-import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +17,7 @@ import java.util.Map;
 
 /**
  * Idempotently brings the realm up to the permission model the code expects, on every boot:
- * the permission client, the {@link SmartConnectPermissions#SYSTEM} catalog, the system
+ * (given the permission client exists) the {@link SmartConnectPermissions#SYSTEM} catalog, the system
  * {@code admin}/{@code user} roles, and admin holding every permission. Doing this in code
  * rather than only in realm-export.json means an existing Keycloak database (where
  * {@code --import-realm} is a no-op) is upgraded too. Any failure aborts startup.
@@ -52,20 +51,15 @@ public class PermissionCatalogBootstrap implements ApplicationRunner {
         log.info("permission catalog in sync: {} permissions, admin holds all", keycloakRealm.permissions().size());
     }
 
+    /**
+     * The client is created by keycloak-init (infra/keycloak/init.sh): this service's account
+     * can manage that one client but deliberately can't create clients.
+     */
     private void ensurePermissionClient() {
-        if (!keycloakRealm.realm().clients().findByClientId(SmartConnectPermissions.CLIENT_ID).isEmpty()) {
-            return;
+        if (keycloakRealm.realm().clients().findByClientId(SmartConnectPermissions.CLIENT_ID).isEmpty()) {
+            throw new IllegalStateException("Permission client '" + SmartConnectPermissions.CLIENT_ID
+                    + "' is missing - run keycloak-init (docker compose up keycloak-init)");
         }
-        ClientRepresentation client = new ClientRepresentation();
-        client.setClientId(SmartConnectPermissions.CLIENT_ID);
-        client.setName("api-gateway resource server");
-        client.setBearerOnly(true);
-        client.setPublicClient(false);
-        client.setStandardFlowEnabled(false);
-        client.setDirectAccessGrantsEnabled(false);
-        client.setServiceAccountsEnabled(false);
-        keycloakRealm.realm().clients().create(client).close();
-        log.info("created permission client '{}'", SmartConnectPermissions.CLIENT_ID);
     }
 
     private void ensureSystemRole(RolesResource roles, String name, String description) {

@@ -29,7 +29,7 @@
     <spring-cloud.version>2023.0.3</spring-cloud.version>
     <!-- Newer than Boot 3.3's 1.19.8, which can't talk to Docker Engine 29+ -->
     <testcontainers.version>1.21.3</testcontainers.version>
-    <testcontainers-keycloak.version>3.4.0</testcontainers-keycloak.version>
+    <testcontainers-keycloak.version>3.9.1</testcontainers-keycloak.version>
   </properties>
 
   <modules>

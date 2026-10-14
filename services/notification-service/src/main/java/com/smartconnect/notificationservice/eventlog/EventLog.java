@@ -27,8 +27,11 @@ import java.util.List;
 public class EventLog {
 
     static final int CAPACITY = 200;
+    static final int AUDIT_CAPACITY = 500;
 
     private final Deque<EventLogEntry> entries = new ArrayDeque<>();
+    /** audit.performed events, kept apart so routine traffic never pushes them out. */
+    private final Deque<AuditEntry> audit = new ArrayDeque<>();
     private final ObjectMapper objectMapper;
 
     public EventLog(ObjectMapper objectMapper) {
@@ -52,6 +55,23 @@ public class EventLog {
             while (entries.size() > CAPACITY) {
                 entries.removeLast();
             }
+        }
+        if (!deadLetter && event != null && "audit.performed".equals(entry.type()) && event.hasNonNull("payload")) {
+            synchronized (audit) {
+                audit.addFirst(new AuditEntry(entry.eventId(), entry.source(), entry.timestamp(), event.get("payload")));
+                while (audit.size() > AUDIT_CAPACITY) {
+                    audit.removeLast();
+                }
+            }
+        }
+    }
+
+    public List<AuditEntry> audit(int limit) {
+        synchronized (audit) {
+            return audit.stream()
+                    .sorted(java.util.Comparator.comparing(AuditEntry::timestamp).reversed())
+                    .limit(limit)
+                    .toList();
         }
     }
 
@@ -88,6 +108,9 @@ public class EventLog {
 
     private static String truncate(String value) {
         return value == null ? null : value.length() > 200 ? value.substring(0, 200) + "…" : value;
+    }
+
+    public record AuditEntry(String eventId, String source, Instant timestamp, JsonNode record) {
     }
 
     public record EventLogEntry(String topic, int partition, long offset, String key, String eventId, String type,

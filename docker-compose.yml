@@ -95,17 +95,18 @@ services:
       retries: 20
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0
+    image: quay.io/keycloak/keycloak:26.7
     container_name: smartconnect-keycloak
     restart: unless-stopped
-    command: ["start-dev", "--import-realm"]
+    # jboss-logging at INFO puts every login and admin event in the container log -> Filebeat -> Kibana.
+    command: ["start-dev", "--import-realm", "--spi-events-listener--jboss-logging--success-level=info"]
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_HEALTH_ENABLED: "true"
@@ -129,7 +130,7 @@ services:
   # One-shot: realm setup realm-export.json can't apply to an existing database
   # (see infra/keycloak/init.sh). Re-runs, idempotently, on every `docker compose up`.
   keycloak-init:
-    image: quay.io/keycloak/keycloak:25.0
+    image: quay.io/keycloak/keycloak:26.7
     container_name: smartconnect-keycloak-init
     entrypoint: ["sh", "/init.sh"]
     environment:

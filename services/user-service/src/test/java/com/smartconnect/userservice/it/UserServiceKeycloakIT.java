@@ -51,7 +51,7 @@ class UserServiceKeycloakIT {
     static final String SECRET = "it-user-service-secret";
 
     @Container
-    static final KeycloakContainer KEYCLOAK = new KeycloakContainer("quay.io/keycloak/keycloak:25.0")
+    static final KeycloakContainer KEYCLOAK = new KeycloakContainer("quay.io/keycloak/keycloak:26.7")
             .withRealmImportFile("realm-export.json")
             .withCopyFileToContainer(MountableFile.forHostPath("../../infra/keycloak/init.sh"), "/init.sh");
 
@@ -201,6 +201,43 @@ class UserServiceKeycloakIT {
         assertThat(status(api(admin()).delete().uri("/api/sessions/" + session.get("id").asText()))).isEqualTo(204);
         assertThat(StreamSupport.stream(api(admin()).get().uri("/api/sessions").retrieve().body(JsonNode.class).spliterator(), false)
                 .map(s -> s.get("username").asText())).doesNotContain(username);
+    }
+
+    @Test
+    void theServiceAccountManagesOnlyTheGatewayClient() {
+        LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("grant_type", "client_credentials");
+        form.add("client_id", "user-service");
+        form.add("client_secret", SECRET);
+        String serviceToken = RestClient.create().post()
+                .uri(KEYCLOAK.getAuthServerUrl() + "/realms/smartconnect/protocol/openid-connect/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form)
+                .retrieve().body(JsonNode.class).get("access_token").asText();
+        RestClient admin = RestClient.builder().baseUrl(KEYCLOAK.getAuthServerUrl() + "/admin/realms/smartconnect")
+                .defaultHeader("Authorization", "Bearer " + serviceToken)
+                .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> { })
+                .build();
+
+        String backoffice = admin.get().uri("/clients?clientId=backoffice-app").retrieve().body(JsonNode.class).get(0).get("id").asText();
+        JsonNode client = admin.get().uri("/clients/" + backoffice).retrieve().body(JsonNode.class);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) client).putArray("redirectUris").add("https://evil.example/*");
+        assertThat(status(admin.put().uri("/clients/" + backoffice).contentType(MediaType.APPLICATION_JSON).body(client))).isEqualTo(403);
+        assertThat(status(admin.post().uri("/clients").contentType(MediaType.APPLICATION_JSON).body(Map.of("clientId", "it-evil")))).isEqualTo(403);
+        assertThat(status(admin.get().uri("/admin-events?max=1"))).isEqualTo(200);
+    }
+
+    @Test
+    void auditRecordsAdminChangesAndSignIns() {
+        String role = "it-audit-" + suffix();
+        assertThat(status(api(admin()).post().uri("/api/roles").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("name", role, "permissions", List.of())))).isEqualTo(201);
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            JsonNode changes = api(admin()).get().uri("/api/audit/admin-changes").retrieve().body(JsonNode.class);
+            assertThat(changes.toString()).contains("roles/" + role).contains("service-account-user-service");
+            JsonNode signIns = api(admin()).get().uri("/api/audit/sign-ins").retrieve().body(JsonNode.class);
+            assertThat(signIns.toString()).contains("admin.seed").contains("LOGIN");
+        });
     }
 
     // --- helpers

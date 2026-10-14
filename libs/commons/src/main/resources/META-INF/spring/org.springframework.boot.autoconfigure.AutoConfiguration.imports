@@ -8,3 +8,4 @@ com.smartconnect.commons.kafka.KafkaObservabilityAutoConfiguration
 com.smartconnect.commons.permissions.PermissionCatalogAutoConfiguration
 com.smartconnect.commons.client.ServiceClientsAutoConfiguration
 com.smartconnect.commons.messaging.MessagingAutoConfiguration
+com.smartconnect.commons.audit.AuditAutoConfiguration

@@ -3,7 +3,7 @@ import Topbar from './Topbar.jsx';
 import Sidebar from './Sidebar.jsx';
 import Toasts from './Toasts.jsx';
 import { PageSpinner, SectionSpinner } from './Spinner.jsx';
-import { DevicesIcon, KeyIcon, PulseIcon, ShieldIcon, StreamIcon, UsersIcon } from './icons.jsx';
+import { AuditIcon, DevicesIcon, KeyIcon, PulseIcon, ShieldIcon, StreamIcon, UsersIcon } from './icons.jsx';
 import useUsers from '../hooks/useUsers.js';
 import useCollection from '../hooks/useCollection.js';
 import useHashRoute from '../hooks/useHashRoute.js';
@@ -18,6 +18,7 @@ const PermissionsPage = lazy(() => import('../pages/PermissionsPage.jsx'));
 const GatewayHealthPage = lazy(() => import('../pages/GatewayHealthPage.jsx'));
 const SessionsPage = lazy(() => import('../pages/SessionsPage.jsx'));
 const EventLogPage = lazy(() => import('../pages/EventLogPage.jsx'));
+const AuditPage = lazy(() => import('../pages/AuditPage.jsx'));
 const EventStreamRail = lazy(() => import('./EventStreamRail.jsx'));
 const NoAccess = lazy(() => import('./NoAccess.jsx'));
 
@@ -185,6 +186,7 @@ export default function BackofficeShell({ keycloak }) {
         { id: 'gateway', label: 'Gateway health', icon: PulseIcon, permission: P.PLATFORM_READ },
         { id: 'sessions', label: 'Sessions', icon: DevicesIcon, permission: P.SESSIONS_READ },
         { id: 'events', label: 'Event log', icon: StreamIcon, permission: P.EVENTS_READ },
+        { id: 'audit', label: 'Audit', icon: AuditIcon, permission: P.AUDIT_READ },
       ],
     },
   ]
@@ -240,6 +242,7 @@ export default function BackofficeShell({ keycloak }) {
               <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
             )}
             {active === 'events' && <EventLogPage getToken={getToken} />}
+            {active === 'audit' && <AuditPage getToken={getToken} />}
           </Suspense>
         </main>
         {active === 'users' && (

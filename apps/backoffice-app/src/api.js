@@ -128,3 +128,15 @@ export function signOutEverywhere(userId, token) {
 export function listRecentEvents(token, limit = 200) {
   return request(`/api/events/recent?limit=${limit}`, { token });
 }
+
+export function listAuditActions(token, limit = 200) {
+  return request(`/api/events/audit?limit=${limit}`, { token });
+}
+
+export function listAdminChanges(token, max = 100) {
+  return request(`/api/audit/admin-changes?max=${max}`, { token });
+}
+
+export function listSignIns(token, max = 100) {
+  return request(`/api/audit/sign-ins?max=${max}`, { token });
+}

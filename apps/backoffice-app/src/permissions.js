@@ -14,6 +14,7 @@ export const P = {
   SESSIONS_READ: 'sessions:read',
   SESSIONS_WRITE: 'sessions:write',
   EVENTS_READ: 'events:read',
+  AUDIT_READ: 'audit:read',
 };
 
 export function permissionsFromToken(tokenParsed) {
