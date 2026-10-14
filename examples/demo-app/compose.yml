@@ -16,6 +16,7 @@ services:
       args:
         MODULE: examples/demo-app/demo-service
     container_name: smartconnect-demo-service
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     profiles: ["demo-app"]
     environment:
@@ -46,6 +47,7 @@ services:
     build:
       context: ./web
     container_name: smartconnect-demo-web
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     profiles: ["demo-app"]
     ports:

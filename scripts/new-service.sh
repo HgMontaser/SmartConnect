@@ -273,6 +273,7 @@ SERVICE_BLOCK="  $NAME:
       args:
         MODULE: $MODULE
     container_name: smartconnect-$NAME
+    logging: {driver: json-file, options: {max-size: 10m, max-file: \"3\"}}
     restart: unless-stopped$PROFILE_LINE
     environment:
       VAULT_URI: http://vault:8200

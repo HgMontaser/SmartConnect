@@ -1,6 +1,9 @@
 # No secret lives in this file or in git: secrets-init generates them into the `secrets` volume
 # on first run (infra/secrets/init.sh). Each service mounts only its own folder of it.
 
+# Every container logs to json-file explicitly: Filebeat reads those files, and the Docker default
+# driver differs per machine (Docker Desktop now defaults to `local`, which Filebeat can't read).
+
 # Example apps (examples/<name>/compose.yml) are included here but only start with their
 # profile, e.g. `docker compose --profile demo-app up -d --build`.
 include:
@@ -28,6 +31,7 @@ services:
   secrets-init:
     image: alpine:3.20
     container_name: smartconnect-secrets-init
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     entrypoint: ["sh", "/init.sh"]
     volumes:
       - ./infra/secrets/init.sh:/init.sh:ro
@@ -40,6 +44,7 @@ services:
   vault:
     image: hashicorp/vault:1.17
     container_name: smartconnect-vault
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "8200:8200"
@@ -71,6 +76,7 @@ services:
   consul:
     image: hashicorp/consul:1.19
     container_name: smartconnect-consul
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "8500:8500"
@@ -101,6 +107,7 @@ services:
   keycloak-postgres:
     image: postgres:16-alpine
     container_name: smartconnect-keycloak-postgres
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     environment:
       POSTGRES_DB: keycloak
@@ -119,6 +126,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.7
     container_name: smartconnect-keycloak
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     # jboss-logging at INFO puts every login and admin event in the container log -> Filebeat -> Kibana.
     command: ["start-dev", "--import-realm", "--spi-events-listener--jboss-logging--success-level=info"]
@@ -154,6 +162,7 @@ services:
   keycloak-init:
     image: quay.io/keycloak/keycloak:26.7
     container_name: smartconnect-keycloak-init
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     entrypoint: ["sh", "/init.sh"]
     environment:
       KEYCLOAK_URL: http://keycloak:8080
@@ -178,6 +187,7 @@ services:
   kafka:
     image: apache/kafka:3.8.0
     container_name: smartconnect-kafka
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "9092:9092"
@@ -215,6 +225,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: smartconnect-redis
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -234,6 +245,7 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     container_name: smartconnect-elasticsearch
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     environment:
       discovery.type: single-node
@@ -254,6 +266,7 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:8.15.0
     container_name: smartconnect-kibana
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
@@ -270,11 +283,29 @@ services:
       timeout: 5s
       retries: 30
 
+  # One-shot: imports the SmartConnect dashboard, saved search and data views into Kibana.
+  kibana-init:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: smartconnect-kibana-init
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+    entrypoint: ["sh", "/init.sh"]
+    environment:
+      KIBANA_URL: http://kibana:5601
+    volumes:
+      - ./infra/kibana/init.sh:/init.sh:ro
+      - ./infra/kibana/smartconnect.ndjson:/kibana/smartconnect.ndjson:ro
+    depends_on:
+      kibana:
+        condition: service_healthy
+    networks:
+      - smartconnect
+
   # Distributed tracing: services send OTLP spans here; UI on http://localhost:16686.
   # In-memory storage - traces are gone after a restart, which is fine for local work.
   jaeger:
     image: jaegertracing/all-in-one:1.62.0
     container_name: smartconnect-jaeger
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
@@ -294,6 +325,7 @@ services:
       args:
         MODULE: services/api-gateway
     container_name: smartconnect-api-gateway
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "8090:8090"
@@ -336,6 +368,7 @@ services:
       args:
         MODULE: services/user-service
     container_name: smartconnect-user-service
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "8081:8081"
@@ -377,6 +410,7 @@ services:
       args:
         MODULE: services/notification-service
     container_name: smartconnect-notification-service
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "8082:8082"
@@ -413,6 +447,7 @@ services:
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.15.0
     container_name: smartconnect-filebeat
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     user: root
     command: ["--strict.perms=false"]
@@ -435,6 +470,7 @@ services:
     build:
       context: ./apps/login-app
     container_name: smartconnect-login-app
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "5173:8080"
@@ -445,6 +481,7 @@ services:
     build:
       context: ./apps/backoffice-app
     container_name: smartconnect-backoffice-app
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
     restart: unless-stopped
     ports:
       - "5174:8080"

@@ -35,10 +35,6 @@ management:
     health:
       probes:
         enabled: true
-  metrics:
-    distribution:
-      percentiles:
-        http.server.requests: 0.5,0.95,0.99
   elastic:
     metrics:
       export:

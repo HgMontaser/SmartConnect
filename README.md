@@ -19,7 +19,7 @@ Reachable at:
 - Vault UI: http://localhost:8200 (token: `scripts/show-secret.sh vault-root-token`)
 - Consul UI: http://localhost:8500 (token: `scripts/show-secret.sh consul-root-token`)
 - Jaeger (traces): http://localhost:16686
-- Kibana: http://localhost:5601
+- Kibana: http://localhost:5601 (dashboard: SmartConnect overview)
 - Elasticsearch: http://localhost:9200
 
 Rebuild a single piece after a change, e.g. `docker compose up -d --build user-service`.
@@ -117,7 +117,24 @@ Services talk asynchronously through Kafka using one envelope (`EventEnvelope`, 
 Every service sends OpenTelemetry spans to Jaeger (http://localhost:16686). One request is one
 trace across the gateway, service-to-service calls (`ServiceClients`) and Kafka (producer to
 consumer). Every log line carries `trace=<id>`, so a trace in Jaeger leads to its logs in Kibana
-(search for the trace id). Sampling and the endpoint are in `infra/consul/config/application.yml`.
+(`trace.id : <id>`). Sampling and the endpoint are in `infra/consul/config/application.yml`.
+
+## Logs and metrics (Kibana)
+
+Filebeat ships every container's log to `smartconnect-logs-*` and lifts the fleet log format's
+`log.level`, `log.logger`, `trace.id`, `span.id` and `correlation_id` into fields
+(`infra/elastic/filebeat.yml`). Services push Micrometer metrics to `smartconnect-metrics-*`
+every 30s. Every container logs to `json-file` explicitly (`logging:` in compose) - Filebeat
+can't read Docker's `local` driver, which newer Docker Desktop uses by default.
+
+On every start `kibana-init` imports `infra/kibana/smartconnect.ndjson`:
+- **SmartConnect overview** dashboard: requests, 5xx error rate and p95 latency per service,
+  and ERROR log lines per container.
+- **Trace a correlation ID** saved search: replace `*` in `correlation_id : *` with the
+  `X-Correlation-Id` of a response to follow that request through every service, Kafka included.
+
+The import overwrites those objects, so the file is the source of truth: change them in Kibana,
+then re-export (the command is in `infra/kibana/init.sh`), or "Save as" to keep your own copy.
 
 ## Resilience (api-gateway)
 

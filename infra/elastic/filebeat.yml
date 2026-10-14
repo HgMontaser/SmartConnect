@@ -6,6 +6,23 @@ filebeat.inputs:
 processors:
   - add_docker_metadata:
       host: "unix:///var/run/docker.sock"
+  # SmartConnect services log one format (infra/consul/config/application.yml, logging.pattern):
+  #   <time> [thread] LEVEL logger [trace=.. span=.. correlationId=..] - message
+  # Lift level, logger, trace/span and correlation id into fields, so Kibana can filter on
+  # them (e.g. the "Trace a correlation ID" saved search). Other containers' lines pass through.
+  - script:
+      lang: javascript
+      source: >
+        var LINE = /^\S+ \S+ \[[^\]]*\] (\w+)\s+(\S+) \[trace=(\S*) span=(\S*) correlationId=(\S*)\] - /;
+        function process(event) {
+          var m = LINE.exec(event.Get("message") || "");
+          if (!m) return;
+          event.Put("log.level", m[1]);
+          event.Put("log.logger", m[2]);
+          if (m[3]) event.Put("trace.id", m[3]);
+          if (m[4]) event.Put("span.id", m[4]);
+          if (m[5]) event.Put("correlation_id", m[5]);
+        }
 
 output.elasticsearch:
   hosts: ["${ELASTICSEARCH_HOSTS}"]
