@@ -5,6 +5,9 @@ networks:
   smartconnect:
     driver: bridge
 
+volumes:
+  secrets:
+
 services:
   demo-service:
     build:
@@ -17,12 +20,11 @@ services:
     profiles: ["demo-app"]
     environment:
       VAULT_URI: http://vault:8200
-      VAULT_TOKEN: smartconnect-root-token
+      VAULT_ROLE_ID_FILE: /run/secrets/smartconnect/vault-role-id
+      VAULT_SECRET_ID_FILE: /run/secrets/smartconnect/vault-secret-id
       CONSUL_HOST: consul
-      CONSUL_TOKEN_FILE: /run/secrets/consul-token
+      CONSUL_TOKEN_FILE: /run/secrets/smartconnect/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      # Example only - a real service reads its client secret from Vault.
-      DEMO_SERVICE_CLIENT_SECRET: demo-service-dev-secret
     depends_on:
       vault:
         condition: service_healthy
@@ -31,7 +33,12 @@ services:
       kafka:
         condition: service_healthy
     volumes:
-      - ./consul/demo-service.token:/run/secrets/consul-token:ro
+      - type: volume
+        source: secrets
+        target: /run/secrets/smartconnect
+        read_only: true
+        volume:
+          subpath: services/demo-service
     networks:
       - smartconnect
 

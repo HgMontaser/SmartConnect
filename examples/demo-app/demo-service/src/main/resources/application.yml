@@ -13,8 +13,7 @@ spring:
   cloud:
     vault:
       uri: ${VAULT_URI:http://vault:8200}
-      authentication: TOKEN
-      token: ${VAULT_TOKEN:smartconnect-root-token}
+      # Auth (the service's own AppRole) is set up by commons from the mounted credential files.
       fail-fast: true
       kv:
         enabled: true
@@ -25,15 +24,15 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:19092}
 
   # Calls other services as itself via ServiceClients.asService(). Client registered from
-  # ../keycloak/demo-service.json; a real service keeps the secret in Vault, the example takes
-  # it from compose. The token endpoint comes from Consul's shared config.
+  # ../keycloak/demo-service.json; its secret is generated (infra/secrets) and served by Vault.
+  # The token endpoint comes from Consul's shared config.
   security:
     oauth2:
       client:
         registration:
           smartconnect:
             client-id: demo-service
-            client-secret: ${DEMO_SERVICE_CLIENT_SECRET}
+            client-secret: ${smartconnect.client-secret}
             authorization-grant-type: client_credentials
 
 smartconnect:

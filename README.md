@@ -16,8 +16,8 @@ Reachable at:
 - Backoffice: http://localhost:5174 (sign in as `admin.seed` / `SmartConnect123!`)
 - api-gateway: http://localhost:8090
 - Keycloak admin console: http://localhost:8080 (admin / admin)
-- Vault UI: http://localhost:8200 (token: `smartconnect-root-token`)
-- Consul UI: http://localhost:8500 (log in with the root token `0f39b09d-567c-4652-8ff4-a2982d2ce653`)
+- Vault UI: http://localhost:8200 (token: `scripts/show-secret.sh vault-root-token`)
+- Consul UI: http://localhost:8500 (token: `scripts/show-secret.sh consul-root-token`)
 - Jaeger (traces): http://localhost:16686
 - Kibana: http://localhost:5601
 - Elasticsearch: http://localhost:9200
@@ -46,6 +46,27 @@ http://localhost:5174 - each page appears only with its permission:
 - Keycloak shows backoffice changes as made by `service-account-user-service`; the person is in
   the Actions tab / `audit.performed` events.
 
+## Secrets
+
+Nothing secret is in git. On first `docker compose up`, the one-shot `secrets-init` container
+generates every secret into the `secrets` Docker volume and never overwrites them afterwards
+(`infra/secrets/init.sh`):
+
+- per service listed in `infra/secrets/services.list` (or `examples/<app>/services.list`): a
+  Consul ACL token, a Vault AppRole (role-id + secret-id), and optionally a Keycloak client
+  secret;
+- the Consul root token.
+
+Each service container mounts **only its own folder** of that volume. Vault runs in server
+mode (data on the `vault-data` volume, unsealed automatically on start - locally only; use a
+KMS auto-unseal in production) and each service logs in with its own AppRole, whose policy can
+only read `secret/smartconnect/<service>`. Client secrets are set on the Keycloak clients by
+`keycloak-init` and served to the service by Vault, from the same generated file.
+
+Print one with `scripts/show-secret.sh` (`vault-root-token`, `consul-root-token`, or
+`<service> <name>`). To rotate everything locally, `docker compose down` and remove the
+`smartconnect_secrets` and `smartconnect_vault-data` volumes.
+
 ## Discovery, routing and config
 
 - **Consul** is the service registry. Every backend service registers itself on startup (by IP,
@@ -68,13 +89,10 @@ http://localhost:5174 - each page appears only with its permission:
   `docker compose restart consul`.
 - Fleet-wide Consul defaults live in commons (`ServiceDiscoveryDefaults`), so a service only
   needs the two Consul starters and `spring.config.import: "vault://,consul:"`.
-- **ACLs, deny by default.** Each service has its own token in a file -
-  `infra/consul/acl/<service>.token` (or `examples/<app>/consul/`), mounted into the container
-  and read via `CONSUL_TOKEN_FILE`. On every start Consul creates a token per file that may
-  register only that service, discover the others, and read only `config/application` and
-  `config/<service>` - no writes. Anonymous requests see and do nothing. The root token (in
-  `docker-compose.yml`) is for the UI and the Consul container itself. After adding a token
-  file, `docker compose restart consul`. These are dev tokens; generate real ones per environment.
+- **ACLs, deny by default.** Each service gets its own generated Consul token (see Secrets
+  below). On every start Consul creates, per service, a token that may register only that
+  service, discover the others, and read only `config/application` and `config/<service>` -
+  no writes. Anonymous requests see and do nothing.
 
 ## Events
 
@@ -168,7 +186,7 @@ Plug-in points a service uses, all declared in its own repo folder:
 | Call another service | inject `ServiceClients`: `asCaller()` forwards the user's token, `asService()` uses the service's own token. URLs use Consul names: `http://user-service/api/users` |
 | Keycloak client (frontend, service account) | a client JSON in `infra/keycloak/clients/` (or `examples/<app>/keycloak/`); optional `<clientId>.permissions` grants permissions to its service account. Applied by `keycloak-init` on every `docker compose up` |
 | Publish / consume events | inject `EventPublisher`: `events.publish("billing.invoice-paid", id, payload)`; consume with `@KafkaListener(topics = "events.billing", containerFactory = EventListeners.FACTORY)` taking an `EventEnvelope` (see Events below) |
-| Secrets | `infra/vault/seed.sh` under `secret/smartconnect/<service>` (then `docker compose restart vault`) |
+| Secrets | generated per environment - list the service in `services.list` (the script does); add `client-secret` for a Keycloak client secret, served by Vault as `smartconnect.client-secret` |
 | Non-secret config | `infra/consul/config/<service>.yml` |
 
 Startup fails if an `@PreAuthorize` check uses a permission missing from the catalog

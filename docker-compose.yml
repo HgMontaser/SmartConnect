@@ -1,8 +1,5 @@
-# Dev-only shared values, defined once and referenced below.
-x-dev-secrets:
-  user-service-client-secret: &user-service-client-secret "user-service-dev-secret"
-  # Consul root token (ACL management, UI login). Per-service tokens are in infra/consul/acl/.
-  consul-root-token: &consul-root-token "0f39b09d-567c-4652-8ff4-a2982d2ce653"
+# No secret lives in this file or in git: secrets-init generates them into the `secrets` volume
+# on first run (infra/secrets/init.sh). Each service mounts only its own folder of it.
 
 # Example apps (examples/<name>/compose.yml) are included here but only start with their
 # profile, e.g. `docker compose --profile demo-app up -d --build`.
@@ -15,6 +12,8 @@ networks:
     driver: bridge
 
 volumes:
+  secrets:
+  vault-data:
   keycloak-postgres-data:
   kafka-data:
   redis-data:
@@ -25,6 +24,19 @@ services:
   # ---------------------------------------------------------------------
   # Secrets
   # ---------------------------------------------------------------------
+  # One-shot: generates missing secrets into the `secrets` volume (never overwrites).
+  secrets-init:
+    image: alpine:3.20
+    container_name: smartconnect-secrets-init
+    entrypoint: ["sh", "/init.sh"]
+    volumes:
+      - ./infra/secrets/init.sh:/init.sh:ro
+      - ./infra/secrets/services.list:/lists/services.list:ro
+      - ./examples:/examples:ro
+      - secrets:/secrets
+    networks:
+      - smartconnect
+
   vault:
     image: hashicorp/vault:1.17
     container_name: smartconnect-vault
@@ -32,25 +44,26 @@ services:
     ports:
       - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "smartconnect-root-token"
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
       VAULT_ADDR: "http://127.0.0.1:8200"
-      USER_SERVICE_CLIENT_SECRET: *user-service-client-secret
-    cap_add:
-      - IPC_LOCK
-    # Dev mode is in-memory: the entrypoint re-seeds on every start (see infra/vault/entrypoint.sh)
-    # and the healthcheck only passes once seeding is done.
+    # Server mode: data persists in vault-data; the entrypoint unseals, configures AppRoles and
+    # loads generated secrets on every start, and the healthcheck passes once that's done.
     entrypoint: ["sh", "/entrypoint.sh"]
     volumes:
       - ./infra/vault/entrypoint.sh:/entrypoint.sh:ro
       - ./infra/vault/seed.sh:/seed.sh:ro
+      - ./infra/vault/vault.hcl:/vault/config/vault.hcl:ro
+      - vault-data:/vault/data
+      - secrets:/secrets:ro
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     networks:
       - smartconnect
     healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/seeded && wget -q -O- 'http://127.0.0.1:8200/v1/sys/health?standbyok=true'"]
+      test: ["CMD-SHELL", "test -f /tmp/configured && vault status >/dev/null"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
 
   # ---------------------------------------------------------------------
   # Service discovery + shared config
@@ -65,13 +78,15 @@ services:
     # (see infra/consul/entrypoint.sh) and the healthcheck only passes once that's done.
     entrypoint: ["sh", "/entrypoint.sh"]
     environment:
-      # The CLI (entrypoint, healthcheck) authenticates with the root token.
-      CONSUL_HTTP_TOKEN: *consul-root-token
+      # The CLI (entrypoint, healthcheck) authenticates with the generated root token.
+      CONSUL_HTTP_TOKEN_FILE: /secrets/infra/consul-root-token
     volumes:
       - ./infra/consul/entrypoint.sh:/entrypoint.sh:ro
       - ./infra/consul/config:/consul-config:ro
-      - ./infra/consul/acl:/consul-acl:ro
-      - ./examples:/examples:ro
+      - secrets:/secrets:ro
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     networks:
       - smartconnect
     healthcheck:
@@ -144,14 +159,16 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      USER_SERVICE_CLIENT_SECRET: *user-service-client-secret
     volumes:
       - ./infra/keycloak/init.sh:/init.sh:ro
+      - secrets:/secrets:ro
       - ./infra/keycloak/clients:/clients:ro
       - ./examples:/examples:ro
     depends_on:
       keycloak:
         condition: service_healthy
+      secrets-init:
+        condition: service_completed_successfully
     networks:
       - smartconnect
 
@@ -282,9 +299,10 @@ services:
       - "8090:8090"
     environment:
       VAULT_URI: http://vault:8200
-      VAULT_TOKEN: smartconnect-root-token
+      VAULT_ROLE_ID_FILE: /run/secrets/smartconnect/vault-role-id
+      VAULT_SECRET_ID_FILE: /run/secrets/smartconnect/vault-secret-id
       CONSUL_HOST: consul
-      CONSUL_TOKEN_FILE: /run/secrets/consul-token
+      CONSUL_TOKEN_FILE: /run/secrets/smartconnect/consul-token
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       ELASTICSEARCH_HOST: http://elasticsearch:9200
@@ -298,7 +316,13 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./infra/consul/acl/api-gateway.token:/run/secrets/consul-token:ro
+      # Only this service's own credentials (consul-token, vault-role-id/secret-id).
+      - type: volume
+        source: secrets
+        target: /run/secrets/smartconnect
+        read_only: true
+        volume:
+          subpath: services/api-gateway
     networks:
       - smartconnect
 
@@ -317,9 +341,10 @@ services:
       - "8081:8081"
     environment:
       VAULT_URI: http://vault:8200
-      VAULT_TOKEN: smartconnect-root-token
+      VAULT_ROLE_ID_FILE: /run/secrets/smartconnect/vault-role-id
+      VAULT_SECRET_ID_FILE: /run/secrets/smartconnect/vault-secret-id
       CONSUL_HOST: consul
-      CONSUL_TOKEN_FILE: /run/secrets/consul-token
+      CONSUL_TOKEN_FILE: /run/secrets/smartconnect/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
@@ -332,7 +357,13 @@ services:
       kafka:
         condition: service_healthy
     volumes:
-      - ./infra/consul/acl/user-service.token:/run/secrets/consul-token:ro
+      # Only this service's own credentials (consul-token, vault-role-id/secret-id).
+      - type: volume
+        source: secrets
+        target: /run/secrets/smartconnect
+        read_only: true
+        volume:
+          subpath: services/user-service
     networks:
       - smartconnect
 
@@ -351,9 +382,10 @@ services:
       - "8082:8082"
     environment:
       VAULT_URI: http://vault:8200
-      VAULT_TOKEN: smartconnect-root-token
+      VAULT_ROLE_ID_FILE: /run/secrets/smartconnect/vault-role-id
+      VAULT_SECRET_ID_FILE: /run/secrets/smartconnect/vault-secret-id
       CONSUL_HOST: consul
-      CONSUL_TOKEN_FILE: /run/secrets/consul-token
+      CONSUL_TOKEN_FILE: /run/secrets/smartconnect/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       ELASTICSEARCH_HOST: http://elasticsearch:9200
     depends_on:
@@ -366,7 +398,13 @@ services:
       kafka:
         condition: service_healthy
     volumes:
-      - ./infra/consul/acl/notification-service.token:/run/secrets/consul-token:ro
+      # Only this service's own credentials (consul-token, vault-role-id/secret-id).
+      - type: volume
+        source: secrets
+        target: /run/secrets/smartconnect
+        read_only: true
+        volume:
+          subpath: services/notification-service
     networks:
       - smartconnect
 

@@ -19,6 +19,8 @@ import java.util.UUID;
  * already knows where Consul is.
  *
  * <ul>
+ *   <li>Logs in to Vault with the service's AppRole ({@code VAULT_ROLE_ID_FILE} +
+ *       {@code VAULT_SECRET_ID_FILE}), falling back to {@code VAULT_TOKEN}.</li>
  *   <li>Authenticates to Consul with the ACL token in {@code CONSUL_TOKEN_FILE}, if set.</li>
  *   <li>Config changes in Consul KV reach the service within a few seconds.</li>
  *   <li>Registers by IP (containers have no stable hostname) under a per-process instance id.</li>
@@ -48,8 +50,21 @@ public class ServiceDiscoveryDefaults implements EnvironmentPostProcessor, Order
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         Map<String, Object> defaults = new HashMap<>();
         defaults.put("spring.cloud.consul.host", "${CONSUL_HOST:consul}");
+        // Vault: log in with the service's own AppRole when its credential files are mounted;
+        // otherwise a token (VAULT_TOKEN) - only tests and ad-hoc runs do that.
+        String roleId = readSecret(environment.getProperty("VAULT_ROLE_ID_FILE"), "VAULT_ROLE_ID_FILE");
+        String secretId = readSecret(environment.getProperty("VAULT_SECRET_ID_FILE"), "VAULT_SECRET_ID_FILE");
+        if (roleId != null && secretId != null) {
+            defaults.put("spring.cloud.vault.authentication", "APPROLE");
+            defaults.put("spring.cloud.vault.app-role.role-id", roleId);
+            defaults.put("spring.cloud.vault.app-role.secret-id", secretId);
+        } else {
+            defaults.put("spring.cloud.vault.authentication", "TOKEN");
+            defaults.put("spring.cloud.vault.token", "${VAULT_TOKEN:}");
+        }
+
         // Consul ACL token (discovery + config) from the file the container mounts.
-        String token = readToken(environment.getProperty("CONSUL_TOKEN_FILE"));
+        String token = readSecret(environment.getProperty("CONSUL_TOKEN_FILE"), "CONSUL_TOKEN_FILE");
         if (token != null) {
             defaults.put("spring.cloud.consul.token", token);
         }
@@ -75,15 +90,15 @@ public class ServiceDiscoveryDefaults implements EnvironmentPostProcessor, Order
         environment.getPropertySources().addLast(new MapPropertySource(PROPERTY_SOURCE, defaults));
     }
 
-    private static String readToken(String file) {
+    private static String readSecret(String file, String variable) {
         if (file == null || file.isBlank()) {
             return null;
         }
         try {
-            String token = java.nio.file.Files.readString(java.nio.file.Path.of(file)).trim();
-            return token.isEmpty() ? null : token;
+            String value = java.nio.file.Files.readString(java.nio.file.Path.of(file)).trim();
+            return value.isEmpty() ? null : value;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("CONSUL_TOKEN_FILE is set but unreadable: " + file, e);
+            throw new IllegalStateException(variable + " is set but unreadable: " + file, e);
         }
     }
 }

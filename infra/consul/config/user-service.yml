@@ -1,0 +1,9 @@
+# user-service's non-secret config (Consul KV: config/user-service/data). Its client secret
+# comes from Vault (smartconnect.client-secret, generated - see infra/secrets).
+keycloak:
+  target-realm: smartconnect
+  admin:
+    server-url: http://keycloak:8080
+    realm: smartconnect
+    client-id: user-service
+    client-secret: ${smartconnect.client-secret}

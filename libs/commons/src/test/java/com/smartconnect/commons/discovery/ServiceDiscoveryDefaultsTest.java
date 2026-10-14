@@ -44,6 +44,28 @@ class ServiceDiscoveryDefaultsTest {
     }
 
     @Test
+    void logsInToVaultWithTheMountedAppRole(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        StandardEnvironment environment = new StandardEnvironment();
+        props(environment).put("VAULT_ROLE_ID_FILE", java.nio.file.Files.writeString(dir.resolve("role"), "role-1\n").toString());
+        props(environment).put("VAULT_SECRET_ID_FILE", java.nio.file.Files.writeString(dir.resolve("secret"), "secret-1").toString());
+        new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("spring.cloud.vault.authentication")).isEqualTo("APPROLE");
+        assertThat(environment.getProperty("spring.cloud.vault.app-role.role-id")).isEqualTo("role-1");
+        assertThat(environment.getProperty("spring.cloud.vault.app-role.secret-id")).isEqualTo("secret-1");
+    }
+
+    @Test
+    void fallsBackToAVaultTokenWithoutAppRoleFiles() {
+        StandardEnvironment environment = new StandardEnvironment();
+        props(environment).put("VAULT_TOKEN", "t-1");
+        new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("spring.cloud.vault.authentication")).isEqualTo("TOKEN");
+        assertThat(environment.getProperty("spring.cloud.vault.token")).isEqualTo("t-1");
+    }
+
+    @Test
     void noTokenFileMeansNoToken() {
         StandardEnvironment environment = new StandardEnvironment();
         new ServiceDiscoveryDefaults().postProcessEnvironment(environment, null);

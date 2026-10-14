@@ -70,9 +70,10 @@ class UserServiceKeycloakIT {
     @BeforeAll
     static void prepareStack() throws Exception {
         // The same one-shot job compose runs: creates the scoped user-service service account.
+        // Its client secret comes from the generated-secrets layout, as in compose.
         var result = KEYCLOAK.execInContainer("sh", "-c",
-                "KEYCLOAK_URL=http://localhost:8080 KEYCLOAK_ADMIN=admin KEYCLOAK_ADMIN_PASSWORD=admin "
-                        + "USER_SERVICE_CLIENT_SECRET=" + SECRET + " sh /init.sh");
+                "mkdir -p /tmp/secrets/services/user-service && printf %s " + SECRET + " > /tmp/secrets/services/user-service/client-secret && "
+                        + "SECRETS_DIR=/tmp/secrets KEYCLOAK_URL=http://localhost:8080 KEYCLOAK_ADMIN=admin KEYCLOAK_ADMIN_PASSWORD=admin sh /init.sh");
         assertThat(result.getExitCode()).as(result.getStdout() + result.getStderr()).isZero();
 
         // Config servers are read before @DynamicPropertySource applies - use the env-var hooks.

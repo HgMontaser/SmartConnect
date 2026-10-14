@@ -5,6 +5,5 @@
   "publicClient": false,
   "serviceAccountsEnabled": true,
   "standardFlowEnabled": false,
-  "directAccessGrantsEnabled": false,
-  "secret": "demo-service-dev-secret"
+  "directAccessGrantsEnabled": false
 }

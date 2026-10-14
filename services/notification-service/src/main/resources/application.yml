@@ -14,8 +14,7 @@ spring:
   cloud:
     vault:
       uri: ${VAULT_URI:http://vault:8200}
-      authentication: TOKEN
-      token: ${VAULT_TOKEN:smartconnect-root-token}
+      # Auth (the service's own AppRole) is set up by commons from the mounted credential files.
       fail-fast: true
       kv:
         enabled: true

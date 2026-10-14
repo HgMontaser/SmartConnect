@@ -10,13 +10,14 @@
 #      infra/keycloak/clients/<clientId>.json     platform clients
 #      examples/<example>/keycloak/<clientId>.json example clients
 #    Each file is a Keycloak client representation and is the source of truth (re-applied on
-#    every run). An optional <clientId>.permissions next to it lists SmartConnect permissions,
+#    every run) - except secrets, which come from the generated secrets volume. An optional <clientId>.permissions next to it lists SmartConnect permissions,
 #    one per line, granted directly to that client's service account.
 # The master admin credentials are used here, in this short-lived job, and nowhere else.
 set -e
 # Only POSIX sh + sed/grep/cut/tr/head: the Keycloak image ships nothing else (no awk, jq).
 
 KCADM=/opt/keycloak/bin/kcadm.sh
+SECRETS=${SECRETS_DIR:-/secrets}
 REALM=smartconnect
 CLIENT_ID=user-service
 
@@ -45,8 +46,6 @@ if [ -z "$ID" ]; then
   ID=$(client_id_of $CLIENT_ID)
   echo "created client $CLIENT_ID"
 fi
-# Keep the secret in step with the one Vault hands to user-service.
-$KCADM update clients/"$ID" -r $REALM -s secret="$USER_SERVICE_CLIENT_SECRET"
 
 # Realm-wide roles user-service needs: users + their role mappings, realm roles (roles CRUD -
 # Keycloak has no finer grain for creating realm roles), reading clients, and reading audit
@@ -112,6 +111,16 @@ for file in /clients/*.json /examples/*/keycloak/*.json; do
     $KCADM add-roles -r $REALM --uusername service-account-"$cid" --cclientid gateway --rolename "$perm"
     echo "granted $perm to service account $cid"
   done
+done
+
+# --- Client secrets: generated per environment (infra/secrets), the same value Vault hands the
+# service as smartconnect.client-secret - never taken from the client files.
+for secret in "$SECRETS"/services/*/client-secret; do
+  [ -f "$secret" ] || continue
+  cid=$(basename "$(dirname "$secret")")
+  id=$(client_id_of "$cid")
+  [ -n "$id" ] || continue
+  $KCADM update clients/"$id" -r $REALM -s secret="$(cat "$secret")"
 done
 
 echo "keycloak init complete"

@@ -162,8 +162,7 @@ spring:
   cloud:
     vault:
       uri: \${VAULT_URI:http://vault:8200}
-      authentication: TOKEN
-      token: \${VAULT_TOKEN:smartconnect-root-token}
+      # Logs in with its own AppRole (generated, mounted) - set up by commons.
       fail-fast: true
       kv:
         enabled: true
@@ -174,14 +173,15 @@ spring:
     bootstrap-servers: \${KAFKA_BOOTSTRAP_SERVERS:kafka:19092}
 
   # To call other services as itself (ServiceClients.asService()), register a confidential
-  # Keycloak client (infra/keycloak/clients/$NAME.json + $NAME.permissions) and uncomment:
+  # Keycloak client (infra/keycloak/clients/$NAME.json + $NAME.permissions), add
+  # "client-secret" to this service's line in the services.list, and uncomment:
   # security:
   #   oauth2:
   #     client:
   #       registration:
   #         smartconnect:
   #           client-id: $NAME
-  #           client-secret: <from Vault>
+  #           client-secret: \${smartconnect.client-secret}
   #           authorization-grant-type: client_credentials
 
 smartconnect:
@@ -254,11 +254,10 @@ if [ -n "$EXAMPLE" ]; then MARKER="new-service:examples"; INDENT="        "; els
 awk -v line="$INDENT<module>$MODULE</module>" -v marker="$MARKER" \
   'index($0, marker) { print line } { print }' pom.xml > pom.xml.tmp && mv pom.xml.tmp pom.xml
 
-# --- Consul ACL token: Consul creates a least-privilege token for every token file it finds
-if [ -n "$EXAMPLE" ]; then TOKEN_DIR="examples/$EXAMPLE/consul"; TOKEN_MOUNT="./consul/$NAME.token"
-else TOKEN_DIR="infra/consul/acl"; TOKEN_MOUNT="./infra/consul/acl/$NAME.token"; fi
-mkdir -p "$TOKEN_DIR"
-{ uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid; } | tr 'A-Z' 'a-z' > "$TOKEN_DIR/$NAME.token"
+# --- Credentials: secrets-init generates a Consul token and a Vault AppRole for every listed service
+if [ -n "$EXAMPLE" ]; then SERVICES_LIST="examples/$EXAMPLE/services.list"; else SERVICES_LIST="infra/secrets/services.list"; fi
+[ -f "$SERVICES_LIST" ] || echo "# Services of the $EXAMPLE example that get generated credentials (see infra/secrets/init.sh)." > "$SERVICES_LIST"
+echo "$NAME" >> "$SERVICES_LIST"
 
 # --- compose entry (an example's compose file lives two levels down, so its context is ../..)
 BUILD_CONTEXT="."
@@ -277,9 +276,10 @@ SERVICE_BLOCK="  $NAME:
     restart: unless-stopped$PROFILE_LINE
     environment:
       VAULT_URI: http://vault:8200
-      VAULT_TOKEN: smartconnect-root-token
+      VAULT_ROLE_ID_FILE: /run/secrets/smartconnect/vault-role-id
+      VAULT_SECRET_ID_FILE: /run/secrets/smartconnect/vault-secret-id
       CONSUL_HOST: consul
-      CONSUL_TOKEN_FILE: /run/secrets/consul-token
+      CONSUL_TOKEN_FILE: /run/secrets/smartconnect/consul-token
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
     depends_on:
       vault:
@@ -289,7 +289,13 @@ SERVICE_BLOCK="  $NAME:
       kafka:
         condition: service_healthy
     volumes:
-      - $TOKEN_MOUNT:/run/secrets/consul-token:ro
+      # Only this service's own credentials.
+      - type: volume
+        source: secrets
+        target: /run/secrets/smartconnect
+        read_only: true
+        volume:
+          subpath: services/$NAME
     networks:
       - smartconnect
 "
@@ -303,6 +309,9 @@ if [ -n "$EXAMPLE" ]; then
 networks:
   smartconnect:
     driver: bridge
+
+volumes:
+  secrets:
 
 services:
 EOF
@@ -321,8 +330,9 @@ else
 fi
 
 echo
-echo "Created $MODULE and registered it in pom.xml and $COMPOSE (Consul token: $TOKEN_DIR/$NAME.token)."
-echo "Restart Consul once so it creates the new service's token: docker compose restart consul"
+echo "Created $MODULE and registered it in pom.xml, $COMPOSE and $SERVICES_LIST."
+echo "Its Consul token and Vault AppRole are generated and applied on the next:"
+echo "  docker compose up -d secrets-init && docker compose restart consul vault"
 echo "Next:"
 if [ -n "$EXAMPLE" ]; then
   echo "  docker compose --profile $EXAMPLE up -d --build $NAME"
