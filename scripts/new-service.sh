@@ -188,6 +188,7 @@ smartconnect:
   # Paths api-gateway routes to this service (discovered via Consul).
   gateway:
     routes: $ROUTES
+    # timeout: 30s   # only if some calls legitimately take longer than the gateway default (10s)
   # This service's permissions, synced into SmartConnect; grant them to roles in the backoffice.
   # Every permission used in @PreAuthorize must be listed here or startup fails.
   permissions:
@@ -204,9 +205,6 @@ management:
       exposure:
         include: health,info
 
-logging:
-  pattern:
-    console: "%d{ISO8601} [%thread] %-5level %logger{36} [correlationId=%X{correlationId}] - %msg%n"
 EOF
 
 cat > "$MODULE/src/main/java/$PACKAGE_DIR/${CLASS}Application.java" <<EOF

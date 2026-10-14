@@ -26,6 +26,9 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setRecordInterceptor(correlationIdRecordInterceptor);
+        // A hand-built factory ignores spring.kafka.listener.observation-enabled, so turn it on
+        // here: the consumer span then joins the producer's trace via the record headers.
+        factory.getContainerProperties().setObservationEnabled(true);
         return factory;
     }
 }

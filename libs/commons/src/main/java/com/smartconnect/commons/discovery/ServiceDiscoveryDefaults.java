@@ -64,6 +64,7 @@ public class ServiceDiscoveryDefaults implements EnvironmentPostProcessor, Order
 
         defaults.put("spring.cloud.consul.discovery.metadata." + GatewayRouteMetadata.ROUTES, "${smartconnect.gateway.routes:}");
         defaults.put("spring.cloud.consul.discovery.metadata." + GatewayRouteMetadata.SCHEME, "${smartconnect.gateway.scheme:http}");
+        defaults.put("spring.cloud.consul.discovery.metadata." + GatewayRouteMetadata.TIMEOUT, "${smartconnect.gateway.timeout:}");
 
         environment.getPropertySources().addLast(new MapPropertySource(PROPERTY_SOURCE, defaults));
     }

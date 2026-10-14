@@ -4,7 +4,28 @@
 smartconnect:
   environment: local
 
+# Distributed tracing: every service sends spans to Jaeger (UI: http://localhost:16686).
+# Sample everything locally; lower this in production.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://jaeger:4318/v1/traces
+
+# One log format fleet-wide, with trace/span ids so a trace in Jaeger leads to its logs in Kibana.
+logging:
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} [trace=%X{traceId:-} span=%X{spanId:-} correlationId=%X{correlationId:-}] - %msg%n"
+
 spring:
+  kafka:
+    # Trace context travels in Kafka record headers, so a trace continues from producer to consumer.
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
   security:
     oauth2:
       resourceserver:

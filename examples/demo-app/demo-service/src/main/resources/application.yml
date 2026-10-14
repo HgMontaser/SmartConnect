@@ -55,7 +55,3 @@ management:
     web:
       exposure:
         include: health,info
-
-logging:
-  pattern:
-    console: "%d{ISO8601} [%thread] %-5level %logger{36} [correlationId=%X{correlationId}] - %msg%n"

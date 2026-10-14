@@ -18,6 +18,7 @@ Reachable at:
 - Keycloak admin console: http://localhost:8080 (admin / admin)
 - Vault UI: http://localhost:8200 (token: `smartconnect-root-token`)
 - Consul UI: http://localhost:8500 (registered services, health, KV config)
+- Jaeger (traces): http://localhost:16686
 - Kibana: http://localhost:5601
 - Elasticsearch: http://localhost:9200
 
@@ -44,6 +45,29 @@ Rebuild a single piece after a change, e.g. `docker compose up -d --build user-s
   `docker compose restart consul`.
 - Fleet-wide Consul defaults live in commons (`ServiceDiscoveryDefaults`), so a service only
   needs the two Consul starters and `spring.config.import: "vault://,consul:"`.
+
+## Tracing
+
+Every service sends OpenTelemetry spans to Jaeger (http://localhost:16686). One request is one
+trace across the gateway, service-to-service calls (`ServiceClients`) and Kafka (producer to
+consumer). Every log line carries `trace=<id>`, so a trace in Jaeger leads to its logs in Kibana
+(search for the trace id). Sampling and the endpoint are in `infra/consul/config/application.yml`.
+
+## Resilience (api-gateway)
+
+Every discovered HTTP route gets, in order:
+- **Rate limiting** per user (or IP) - `smartconnect.gateway.rate-limit` in Consul.
+- **Timeouts** - connect 2s, response 10s by default (`spring.cloud.gateway.httpclient` in
+  Consul). A service that needs longer sets `smartconnect.gateway.timeout: 30s` in its config.
+- **A circuit breaker per service** - after repeated infrastructure failures (connection errors,
+  timeouts, 502/503/504) the gateway refuses calls for 10s so the service can recover, then lets
+  a few through to test it. Tuned under `resilience4j.circuitbreaker` in Consul.
+- **Retries for GET only**, on connection errors and 502/503, twice with backoff. Writes are
+  never retried; neither are timeouts.
+
+Failures come back in the standard error JSON: **504** when the service was too slow, **503**
+when it's down or its breaker is open. A service that disappears keeps its route for 10 minutes,
+so callers see 503 while it restarts rather than 404.
 
 ## Users, roles and permissions
 

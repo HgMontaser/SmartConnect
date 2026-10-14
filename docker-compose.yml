@@ -245,6 +245,20 @@ services:
       timeout: 5s
       retries: 30
 
+  # Distributed tracing: services send OTLP spans here; UI on http://localhost:16686.
+  # In-memory storage - traces are gone after a restart, which is fine for local work.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: smartconnect-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      MEMORY_MAX_TRACES: "20000"
+    ports:
+      - "16686:16686"
+    networks:
+      - smartconnect
+
   # ---------------------------------------------------------------------
   # api-gateway
   # ---------------------------------------------------------------------

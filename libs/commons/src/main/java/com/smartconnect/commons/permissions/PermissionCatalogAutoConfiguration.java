@@ -52,6 +52,7 @@ public class PermissionCatalogAutoConfiguration {
         config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
         KafkaTemplate<String, PermissionCatalogEvent> template =
                 new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config));
+        template.setObservationEnabled(true);
 
         return new PermissionCatalogPublisher(properties.getService(), provider, template,
                 new DeclaredPermissionsVerifier(context), properties.isVerify());

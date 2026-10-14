@@ -1,6 +1,7 @@
 package com.smartconnect.commons.client;
 
 import com.smartconnect.commons.correlation.CorrelationIdClientHttpRequestInterceptor;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -38,8 +39,12 @@ public class ServiceClientsAutoConfiguration {
     @ConditionalOnMissingBean
     public ServiceClients serviceClients(DeferringLoadBalancerInterceptor loadBalancer,
                                          ObjectProvider<ServiceTokenProvider> serviceToken,
+                                         ObjectProvider<ObservationRegistry> observations,
                                          @Value("${spring.application.name:service}") String serviceName) {
+        // The observation registry makes each call a client span and propagates the trace
+        // (traceparent header) to the callee, so traces continue across services.
         RestClient.Builder builder = RestClient.builder()
+                .observationRegistry(observations.getIfAvailable(() -> ObservationRegistry.NOOP))
                 .requestInterceptor(new CorrelationIdClientHttpRequestInterceptor())
                 .requestInterceptor(loadBalancer);
         return new ServiceClients(builder, serviceToken.getIfAvailable(), serviceName);

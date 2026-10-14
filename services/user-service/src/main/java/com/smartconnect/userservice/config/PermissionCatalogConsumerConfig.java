@@ -44,6 +44,7 @@ public class PermissionCatalogConsumerConfig {
 
         ConcurrentKafkaListenerContainerFactory<String, PermissionCatalogEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
+        factory.getContainerProperties().setObservationEnabled(true);
         factory.setRecordInterceptor((RecordInterceptor<String, PermissionCatalogEvent>) (RecordInterceptor<?, ?>) correlationIdRecordInterceptor);
         return factory;
     }

@@ -30,6 +30,11 @@
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-gateway</artifactId>
     </dependency>
+    <!-- Circuit breaker per discovered route (Resilience4j) -->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+    </dependency>
 
     <!-- Config from Vault at boot, fail fast if unreachable -->
     <dependency>

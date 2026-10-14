@@ -13,6 +13,9 @@ public final class GatewayRouteMetadata {
     /** {@code http} (default) or {@code ws} for WebSocket endpoints. */
     public static final String SCHEME = "smartconnect-scheme";
 
+    /** Optional response timeout for this service's routes, e.g. {@code 30s}. Blank = gateway default. */
+    public static final String TIMEOUT = "smartconnect-timeout";
+
     private GatewayRouteMetadata() {
     }
 }

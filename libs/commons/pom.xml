@@ -65,6 +65,21 @@
       <optional>true</optional>
     </dependency>
 
+    <!-- Distributed tracing: Micrometer Observation -> OpenTelemetry -> OTLP (Jaeger locally).
+         Endpoint and sampling come from Consul shared config. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-tracing-bridge-otel</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>context-propagation</artifactId>
+    </dependency>
+
     <!-- Service-to-service calls (ServiceClients) - optional: only services making such calls
          pull in spring-cloud-commons (via the Consul starters) and the OAuth2 client. -->
     <dependency>
