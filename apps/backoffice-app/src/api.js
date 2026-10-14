@@ -108,3 +108,23 @@ export function updatePermission(name, payload, token) {
 export function deletePermission(name, token) {
   return request(`/api/permissions/${encodeURIComponent(name)}`, { method: 'DELETE', token });
 }
+
+export function getPlatformServices(token) {
+  return request('/api/platform/services', { token });
+}
+
+export function listSessions(token) {
+  return request('/api/sessions', { token });
+}
+
+export function revokeSession(id, token) {
+  return request(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', token });
+}
+
+export function signOutEverywhere(userId, token) {
+  return request(`/api/sessions/users/${encodeURIComponent(userId)}`, { method: 'DELETE', token });
+}
+
+export function listRecentEvents(token, limit = 200) {
+  return request(`/api/events/recent?limit=${limit}`, { token });
+}

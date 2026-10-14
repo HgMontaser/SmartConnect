@@ -186,6 +186,23 @@ class UserServiceKeycloakIT {
         assertThat(status(anonymous.get().uri("/api/users"))).isEqualTo(401);
     }
 
+    @Test
+    void sessionsCanBeListedAndRevoked() {
+        String username = "it-session-" + suffix();
+        assertThat(status(api(admin()).post().uri("/api/users").contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("username", username, "email", username + "@it.local", "firstName", "It", "lastName", "Session",
+                        "password", "Passw0rd!x", "realmRoles", List.of("user"))))).isEqualTo(201);
+        token(username, "Passw0rd!x"); // signing in creates a session
+
+        JsonNode session = StreamSupport.stream(api(admin()).get().uri("/api/sessions").retrieve().body(JsonNode.class).spliterator(), false)
+                .filter(s -> s.get("username").asText().equals(username)).findFirst().orElseThrow();
+        assertThat(session.get("clients").toString()).contains("login-app");
+
+        assertThat(status(api(admin()).delete().uri("/api/sessions/" + session.get("id").asText()))).isEqualTo(204);
+        assertThat(StreamSupport.stream(api(admin()).get().uri("/api/sessions").retrieve().body(JsonNode.class).spliterator(), false)
+                .map(s -> s.get("username").asText())).doesNotContain(username);
+    }
+
     // --- helpers
 
     private RestClient api(String token) {

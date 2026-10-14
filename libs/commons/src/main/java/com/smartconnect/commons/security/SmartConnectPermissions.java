@@ -25,6 +25,10 @@ public final class SmartConnectPermissions {
     public static final String ROLES_WRITE = "roles:write";
     public static final String PERMISSIONS_READ = "permissions:read";
     public static final String PERMISSIONS_WRITE = "permissions:write";
+    public static final String PLATFORM_READ = "platform:read";
+    public static final String SESSIONS_READ = "sessions:read";
+    public static final String SESSIONS_WRITE = "sessions:write";
+    public static final String EVENTS_READ = "events:read";
 
     public static final Map<String, String> SYSTEM = systemCatalog();
 
@@ -40,6 +44,10 @@ public final class SmartConnectPermissions {
         catalog.put(ROLES_WRITE, "Create, edit and delete roles");
         catalog.put(PERMISSIONS_READ, "View permissions");
         catalog.put(PERMISSIONS_WRITE, "Create, edit and delete permissions");
+        catalog.put(PLATFORM_READ, "View platform health: services, instances, routes, circuit breakers");
+        catalog.put(SESSIONS_READ, "View active sign-in sessions");
+        catalog.put(SESSIONS_WRITE, "Revoke sessions and sign users out");
+        catalog.put(EVENTS_READ, "View the platform event log and dead letters");
         return Collections.unmodifiableMap(catalog);
     }
 }

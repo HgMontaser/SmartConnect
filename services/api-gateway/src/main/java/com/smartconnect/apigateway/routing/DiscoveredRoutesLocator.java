@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -56,6 +55,9 @@ public class DiscoveredRoutesLocator implements RouteDefinitionLocator {
 
     static final Duration ROUTE_GRACE = Duration.ofMinutes(10);
     static final String FALLBACK_URI = "forward:/fallback/unavailable";
+    /** Served by the gateway itself (PlatformController); no service may claim it. */
+    static final String RESERVED_PREFIX = "/api/platform";
+    private static final String WS_PREFIX = "ws:";
 
     private static final Logger log = LoggerFactory.getLogger(DiscoveredRoutesLocator.class);
     private static final String ROUTE_ID_PREFIX = "discovered-";
@@ -89,8 +91,7 @@ public class DiscoveredRoutesLocator implements RouteDefinitionLocator {
         Instant now = clock.instant();
         Map<String, String> claimedBy = new HashMap<>();
         List<RouteDefinition> routes = new ArrayList<>(instances.stream()
-                .map(instance -> toRoute(instance, claimedBy))
-                .filter(Objects::nonNull)
+                .flatMap(instance -> toRoutes(instance, claimedBy).stream())
                 .peek(route -> lastSeen.put(route.getId(), new RememberedRoute(route, now)))
                 .toList());
 
@@ -106,42 +107,60 @@ public class DiscoveredRoutesLocator implements RouteDefinitionLocator {
         return routes;
     }
 
-    private RouteDefinition toRoute(ServiceInstance instance, Map<String, String> claimedBy) {
+    /** One HTTP route and/or one WebSocket route per service, depending on its patterns. */
+    private List<RouteDefinition> toRoutes(ServiceInstance instance, Map<String, String> claimedBy) {
         String service = instance.getServiceId();
         Map<String, String> metadata = instance.getMetadata();
-        List<String> patterns = Arrays.stream(metadata.getOrDefault(GatewayRouteMetadata.ROUTES, "").split(","))
-                .map(String::trim)
-                .filter(p -> !p.isEmpty())
-                .filter(p -> {
-                    String owner = claimedBy.putIfAbsent(p, service);
-                    if (owner != null && !owner.equals(service)) {
-                        log.warn("{} asked for route {} which {} already serves - ignoring it", service, p, owner);
-                        return false;
-                    }
-                    return true;
-                })
-                .toList();
-        if (patterns.isEmpty()) {
-            return null;
-        }
-
-        boolean websocket = "ws".equals(metadata.getOrDefault(GatewayRouteMetadata.SCHEME, "http"));
-        RouteDefinition route = new RouteDefinition();
-        route.setId(ROUTE_ID_PREFIX + service);
-        route.setUri(URI.create(websocket ? "lb:ws://" + service : "lb://" + service));
-        route.setPredicates(List.of(new PredicateDefinition("Path=" + String.join(",", patterns))));
-        route.setFilters(websocket
-                ? List.of(rateLimiter())
-                : List.of(rateLimiter(), circuitBreaker(service), retry()));
-
-        String timeout = metadata.getOrDefault(GatewayRouteMetadata.TIMEOUT, "").trim();
-        if (!timeout.isEmpty() && !websocket) {
-            try {
-                route.setMetadata(Map.of("response-timeout", DurationStyle.detectAndParse(timeout).toMillis()));
-            } catch (IllegalArgumentException e) {
-                log.warn("{} published an invalid timeout '{}' - using the gateway default", service, timeout);
+        boolean allWebsocket = "ws".equals(metadata.getOrDefault(GatewayRouteMetadata.SCHEME, "http"));
+        List<String> http = new ArrayList<>();
+        List<String> websocket = new ArrayList<>();
+        for (String raw : metadata.getOrDefault(GatewayRouteMetadata.ROUTES, "").split(",")) {
+            String pattern = raw.trim();
+            boolean ws = allWebsocket || pattern.startsWith(WS_PREFIX);
+            pattern = pattern.startsWith(WS_PREFIX) ? pattern.substring(WS_PREFIX.length()).trim() : pattern;
+            if (pattern.isEmpty()) {
+                continue;
             }
+            if (pattern.startsWith(RESERVED_PREFIX)) {
+                log.warn("{} asked for route {} which is reserved for the gateway - ignoring it", service, pattern);
+                continue;
+            }
+            String owner = claimedBy.putIfAbsent(pattern, service);
+            if (owner != null && !owner.equals(service)) {
+                log.warn("{} asked for route {} which {} already serves - ignoring it", service, pattern, owner);
+                continue;
+            }
+            (ws ? websocket : http).add(pattern);
         }
+
+        List<RouteDefinition> routes = new ArrayList<>();
+        if (!http.isEmpty()) {
+            RouteDefinition route = route(ROUTE_ID_PREFIX + service, "lb://" + service, http);
+            route.setFilters(List.of(rateLimiter(), circuitBreaker(service), retry()));
+            String timeout = metadata.getOrDefault(GatewayRouteMetadata.TIMEOUT, "").trim();
+            if (!timeout.isEmpty()) {
+                try {
+                    route.setMetadata(Map.of("response-timeout", DurationStyle.detectAndParse(timeout).toMillis()));
+                } catch (IllegalArgumentException e) {
+                    log.warn("{} published an invalid timeout '{}' - using the gateway default", service, timeout);
+                }
+            }
+            routes.add(route);
+        }
+        if (!websocket.isEmpty()) {
+            // WebSockets: rate limiting on the handshake only - a breaker/retry/timeout makes no sense for a long-lived stream.
+            RouteDefinition route = route(ROUTE_ID_PREFIX + service + (http.isEmpty() ? "" : "-ws"), "lb:ws://" + service, websocket);
+            route.setFilters(List.of(rateLimiter()));
+            routes.add(route);
+        }
+        return routes;
+    }
+
+    private static RouteDefinition route(String id, String uri, List<String> patterns) {
+        RouteDefinition route = new RouteDefinition();
+        route.setId(id);
+        route.setUri(URI.create(uri));
+        route.setPredicates(List.of(new PredicateDefinition("Path=" + String.join(",", patterns))));
         return route;
     }
 

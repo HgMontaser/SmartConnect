@@ -52,5 +52,5 @@ management:
 # Routes api-gateway creates for this service, published via Consul metadata.
 smartconnect:
   gateway:
-    routes: /ws/**
-    scheme: ws
+    # Event log REST API + the live WebSocket bridge (ws: prefix).
+    routes: /api/events/**,ws:/ws/**

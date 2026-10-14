@@ -40,6 +40,19 @@ class DiscoveredRoutesLocatorTest {
     }
 
     @Test
+    void splitsMixedHttpAndWebSocketPatternsAndRefusesReservedPaths() {
+        List<RouteDefinition> routes = locator.toRoutes(List.of(
+                instance("notification-service", Map.of(GatewayRouteMetadata.ROUTES, "/api/events/**, ws:/ws/**, /api/platform/**"))));
+
+        assertThat(routes).extracting(RouteDefinition::getId)
+                .containsExactly("discovered-notification-service", "discovered-notification-service-ws");
+        assertThat(routes.get(0).getUri().toString()).isEqualTo("lb://notification-service");
+        assertThat(routes.get(0).getPredicates().get(0).getArgs().values()).containsExactly("/api/events/**");
+        assertThat(routes.get(1).getUri().toString()).isEqualTo("lb:ws://notification-service");
+        assertThat(routes.get(1).getPredicates().get(0).getArgs().values()).containsExactly("/ws/**");
+    }
+
+    @Test
     void appliesAServiceTimeout() {
         List<RouteDefinition> routes = locator.toRoutes(List.of(
                 instance("slow-service", Map.of(GatewayRouteMetadata.ROUTES, "/api/slow/**", GatewayRouteMetadata.TIMEOUT, "30s")),

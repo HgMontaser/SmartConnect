@@ -10,6 +10,10 @@ export const P = {
   ROLES_WRITE: 'roles:write',
   PERMISSIONS_READ: 'permissions:read',
   PERMISSIONS_WRITE: 'permissions:write',
+  PLATFORM_READ: 'platform:read',
+  SESSIONS_READ: 'sessions:read',
+  SESSIONS_WRITE: 'sessions:write',
+  EVENTS_READ: 'events:read',
 };
 
 export function permissionsFromToken(tokenParsed) {

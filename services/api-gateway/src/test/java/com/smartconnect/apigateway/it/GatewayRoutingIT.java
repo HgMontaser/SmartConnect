@@ -154,6 +154,18 @@ class GatewayRoutingIT {
     }
 
     @Test
+    @Order(2)
+    void platformViewNeedsPlatformReadAndShowsDiscoveredServices() {
+        client.get().uri("/api/platform/services").header(HttpHeaders.AUTHORIZATION, bearer()).exchange()
+                .expectStatus().isForbidden();
+        client.get().uri("/api/platform/services").header(HttpHeaders.AUTHORIZATION, bearer("platform:read")).exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[?(@.name == 'stub-service')].routes[0].paths[0]").isEqualTo("/api/stub/**")
+                .jsonPath("$[?(@.name == 'stub-service')].instances[0].status").isEqualTo("PASSING");
+    }
+
+    @Test
     @Order(3)
     void aSlowServiceGetsA504InTheStandardErrorShape() {
         client.get().uri("/api/stub/slow").header(HttpHeaders.AUTHORIZATION, bearer()).exchange()
@@ -177,12 +189,13 @@ class GatewayRoutingIT {
         });
     }
 
-    static String bearer() {
+    static String bearer(String... permissions) {
         try {
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
                     .subject("it-user")
                     .issuer("http://localhost:8080/realms/smartconnect")
                     .claim("preferred_username", "it-user")
+                    .claim("resource_access", Map.of("gateway", Map.of("roles", java.util.List.of(permissions))))
                     .issueTime(new Date())
                     .expirationTime(Date.from(Instant.now().plusSeconds(600)))
                     .build();

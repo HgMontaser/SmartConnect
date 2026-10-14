@@ -40,7 +40,7 @@ done
 
 RESOURCE="${NAME%-service}"
 [[ "$RESOURCE" =~ ^[a-z][a-z0-9-]{0,29}$ ]] || die "permission resource '$RESOURCE' is too long (max 30 chars)"
-case "$RESOURCE" in users|roles|permissions) die "'$RESOURCE' is reserved by SmartConnect" ;; esac
+case "$RESOURCE" in users|roles|permissions|platform|sessions|events) die "'$RESOURCE' is reserved by SmartConnect" ;; esac
 ROUTES="${ROUTES:-/api/$RESOURCE/**}"
 
 # Java package / class names: billing-service -> com.smartconnect.billingservice / BillingService

@@ -121,3 +121,36 @@ export function ClockIcon() {
     </Icon>
   );
 }
+
+export function PulseIcon() {
+  return (
+    <Icon>
+      <path d="M2.5 10h3l2-5 3.5 10 2-5h4.5" />
+    </Icon>
+  );
+}
+
+export function DevicesIcon() {
+  return (
+    <Icon>
+      <rect x="2.5" y="4" width="11" height="8" rx="1.2" />
+      <path d="M5.5 15h5M8 12v3M15 7.5h2a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5V8a.5.5 0 0 1 .5-.5z" />
+    </Icon>
+  );
+}
+
+export function StreamIcon() {
+  return (
+    <Icon>
+      <path d="M3 5.5h14M3 10h14M3 14.5h9" />
+    </Icon>
+  );
+}
+
+export function RefreshIcon() {
+  return (
+    <Icon>
+      <path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5v3h-3" />
+    </Icon>
+  );
+}

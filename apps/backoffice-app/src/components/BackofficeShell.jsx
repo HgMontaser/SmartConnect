@@ -3,7 +3,7 @@ import Topbar from './Topbar.jsx';
 import Sidebar from './Sidebar.jsx';
 import Toasts from './Toasts.jsx';
 import { PageSpinner, SectionSpinner } from './Spinner.jsx';
-import { KeyIcon, ShieldIcon, UsersIcon } from './icons.jsx';
+import { DevicesIcon, KeyIcon, PulseIcon, ShieldIcon, StreamIcon, UsersIcon } from './icons.jsx';
 import useUsers from '../hooks/useUsers.js';
 import useCollection from '../hooks/useCollection.js';
 import useHashRoute from '../hooks/useHashRoute.js';
@@ -15,6 +15,9 @@ import { P, permissionsFromToken } from '../permissions.js';
 const UsersPage = lazy(() => import('../pages/UsersPage.jsx'));
 const RolesPage = lazy(() => import('../pages/RolesPage.jsx'));
 const PermissionsPage = lazy(() => import('../pages/PermissionsPage.jsx'));
+const GatewayHealthPage = lazy(() => import('../pages/GatewayHealthPage.jsx'));
+const SessionsPage = lazy(() => import('../pages/SessionsPage.jsx'));
+const EventLogPage = lazy(() => import('../pages/EventLogPage.jsx'));
 const EventStreamRail = lazy(() => import('./EventStreamRail.jsx'));
 const NoAccess = lazy(() => import('./NoAccess.jsx'));
 
@@ -167,11 +170,27 @@ export default function BackofficeShell({ keycloak }) {
     return [...names].sort().map((name) => ({ name }));
   }, [can, permissionsState.items, rolesState.items]);
 
-  const navItems = [
-    { id: 'users', label: 'Users', icon: UsersIcon, permission: P.USERS_READ, count: usersState.users.length },
-    { id: 'roles', label: 'Roles', icon: ShieldIcon, permission: P.ROLES_READ, count: rolesState.items.length },
-    { id: 'permissions', label: 'Permissions', icon: KeyIcon, permission: P.PERMISSIONS_READ, count: permissionsState.items.length },
-  ].filter((item) => can(item.permission));
+  const navSections = [
+    {
+      label: 'Access',
+      items: [
+        { id: 'users', label: 'Users', icon: UsersIcon, permission: P.USERS_READ, count: usersState.users.length },
+        { id: 'roles', label: 'Roles', icon: ShieldIcon, permission: P.ROLES_READ, count: rolesState.items.length },
+        { id: 'permissions', label: 'Permissions', icon: KeyIcon, permission: P.PERMISSIONS_READ, count: permissionsState.items.length },
+      ],
+    },
+    {
+      label: 'Platform',
+      items: [
+        { id: 'gateway', label: 'Gateway health', icon: PulseIcon, permission: P.PLATFORM_READ },
+        { id: 'sessions', label: 'Sessions', icon: DevicesIcon, permission: P.SESSIONS_READ },
+        { id: 'events', label: 'Event log', icon: StreamIcon, permission: P.EVENTS_READ },
+      ],
+    },
+  ]
+    .map((section) => ({ ...section, items: section.items.filter((item) => can(item.permission)) }))
+    .filter((section) => section.items.length > 0);
+  const navItems = navSections.flatMap((section) => section.items);
 
   const [route, navigate] = useHashRoute();
   const active = navItems.some((i) => i.id === route) ? route : navItems[0]?.id;
@@ -192,7 +211,7 @@ export default function BackofficeShell({ keycloak }) {
     <div className="shell">
       <Topbar connected={connected} initials={initials} username={username} email={tokenParsed?.email} onSignOut={signOut} />
       <div className="shell-body">
-        <Sidebar items={navItems} active={active} onNavigate={navigate} />
+        <Sidebar sections={navSections} active={active} onNavigate={navigate} />
         <main className="shell-main">
           <Suspense fallback={<SectionSpinner label="Loading page…" />}>
             {active === 'users' && (
@@ -216,6 +235,11 @@ export default function BackofficeShell({ keycloak }) {
             {active === 'permissions' && (
               <PermissionsPage permissionsState={permissionsState} can={can} api={permissionApi} notify={notify} />
             )}
+            {active === 'gateway' && <GatewayHealthPage getToken={getToken} />}
+            {active === 'sessions' && (
+              <SessionsPage getToken={getToken} can={can} currentSessionId={tokenParsed?.sid} notify={notify} />
+            )}
+            {active === 'events' && <EventLogPage getToken={getToken} />}
           </Suspense>
         </main>
         {active === 'users' && (

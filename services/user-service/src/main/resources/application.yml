@@ -56,4 +56,4 @@ management:
 # Routes api-gateway creates for this service, published via Consul metadata.
 smartconnect:
   gateway:
-    routes: /api/users/**,/api/roles/**,/api/permissions/**
+    routes: /api/users/**,/api/roles/**,/api/permissions/**,/api/sessions/**

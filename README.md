@@ -24,6 +24,17 @@ Reachable at:
 
 Rebuild a single piece after a change, e.g. `docker compose up -d --build user-service`.
 
+## Backoffice
+
+http://localhost:5174 - each page appears only with its permission:
+
+| Page | Shows | Permission |
+| --- | --- | --- |
+| Users / Roles / Permissions | access management | `users:*`, `roles:*`, `permissions:*` |
+| Gateway health | every Consul service, its instances and health, its gateway routes, its circuit breaker (from api-gateway, `/api/platform/services`) | `platform:read` |
+| Sessions | active Keycloak SSO sessions; revoke one or sign a user out everywhere (user-service, `/api/sessions`) | `sessions:read` / `sessions:write` |
+| Event log | the latest records on every `events.*` topic, dead letters included (notification-service, `/api/events/recent`) | `events:read` |
+
 ## Discovery, routing and config
 
 - **Consul** is the service registry. Every backend service registers itself on startup (by IP,
@@ -35,9 +46,10 @@ Rebuild a single piece after a change, e.g. `docker compose up -d --build user-s
   smartconnect:
     gateway:
       routes: /api/users/**,/api/roles/**   # comma-separated path patterns
-      scheme: ws                             # only for WebSocket services (default http)
+      # prefix a pattern with ws: for WebSocket paths, e.g. /api/events/**,ws:/ws/**
   ```
-  A path already served by another service is refused (logged), never shared.
+  A path already served by another service is refused (logged), never shared, and
+  `/api/platform/**` is reserved for the gateway itself.
 - **Config:** secrets come from Vault; non-secret config comes from Consul KV, seeded from
   `infra/consul/config/` on every Consul start — `application.yml` is shared by all services,
   `<service-name>.yml` by that service only. Changes in the Consul UI apply live within a few
